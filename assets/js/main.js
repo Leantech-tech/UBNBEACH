@@ -203,6 +203,9 @@ function initNavigation() {
   });
 
   menu.querySelectorAll('a').forEach((a) => a.addEventListener('click', closeMenu));
+
+  const closeBtn = document.getElementById('mobileMenuClose');
+  if (closeBtn) closeBtn.addEventListener('click', closeMenu);
 }
 
 /* ============================================================

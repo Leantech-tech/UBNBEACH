@@ -1730,6 +1730,8 @@ Lembrando que amanh\xE3 cedo ir\xE1 ligar automaticamente, para filtrar a \xE1gu
       document.body.classList.toggle("no-scroll", open);
     });
     menu.querySelectorAll("a").forEach((a) => a.addEventListener("click", closeMenu));
+    const closeBtn = document.getElementById("mobileMenuClose");
+    if (closeBtn) closeBtn.addEventListener("click", closeMenu);
   }
   function initReveals() {
     const els = document.querySelectorAll(".reveal");
