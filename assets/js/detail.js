@@ -1,6 +1,7 @@
 import { openModal } from './modal.js';
 import { openBooking } from './booking.js';
 import { createGallery } from './gallery.js';
+import { openNearbyModal } from './nearby.js';
 import { openReviewsModal } from './reviews.js';
 import {
   ICONS,
@@ -126,9 +127,6 @@ Lembrando que amanhã cedo irá ligar automaticamente, para filtrar a água, dei
         <div class="detail-head">
           <div>
             ${apartment.featured ? '<span class="badge badge-gold">Destaque</span>' : ''}
-            <span class="badge ${apartment.available ? 'badge-open' : 'badge-closed'}">
-              ${apartment.available ? 'Disponível' : 'Indisponível no momento'}
-            </span>
             <h3>${esc(apartment.name)}</h3>
             <p class="detail-location">${ICONS.pin}<span>${esc(apartment.location)}</span></p>
             ${apartment.address ? `<p class="detail-address">${esc(apartment.address)}</p>` : ''}
@@ -168,6 +166,10 @@ Lembrando que amanhã cedo irá ligar automaticamente, para filtrar a água, dei
                </div>`
             : ''
         }
+
+        <div class="detail-block">
+          <button type="button" class="btn btn-secondary" data-action="nearby">${ICONS.compass} Interesses próximos</button>
+        </div>
       </div>
 
       <div class="detail-cta">
@@ -204,6 +206,14 @@ Lembrando que amanhã cedo irá ligar automaticamente, para filtrar a água, dei
     // Esconde o modal de detalhes (não fecha) para evitar flash da grade
     if (detailOverlay) detailOverlay.style.display = 'none';
     openReviewsModal(apartment.id, apartment.name, () => {
+      if (detailOverlay) detailOverlay.style.display = 'flex';
+    });
+  });
+
+  modal.body.querySelector('[data-action="nearby"]')?.addEventListener('click', () => {
+    // Mesmo esquema do botão Avaliar: esconde o detalhe e restaura ao fechar
+    if (detailOverlay) detailOverlay.style.display = 'none';
+    openNearbyModal(apartment, () => {
       if (detailOverlay) detailOverlay.style.display = 'flex';
     });
   });

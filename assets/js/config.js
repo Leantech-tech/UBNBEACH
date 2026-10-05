@@ -10,7 +10,7 @@
 
 export const SITE_CONFIG = {
   /** Nome exibido no topo do site e no rodapé. */
-  brandName: 'Bem Estar',
+  brandName: "UB N' BEACH",
 
   /**
    * Número do WhatsApp com código do país (55) + DDD, somente dígitos.

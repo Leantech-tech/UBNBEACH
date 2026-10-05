@@ -34,7 +34,7 @@
   --shadow-md: 0 6px 24px rgba(18, 51, 59, 0.1), 0 2px 6px rgba(18, 51, 59, 0.06);
   --shadow-lg: 0 24px 60px rgba(10, 34, 40, 0.22);
 
-  --header-h: 76px;
+  --header-h: 116px;
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
@@ -224,7 +224,14 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 }
 .site-header.is-scrolled .brand { color: var(--ink); }
 .site-header.menu-open .brand { color: var(--ink); }
-.brand-mark { width: 40px; height: 40px; flex: none; }
+.brand-mark { height: 96px; width: auto; flex: none; }
+.site-header.is-scrolled .brand-mark { height: 46px; }
+
+@media (max-width: 640px) {
+  :root { --header-h: 84px; }
+  .brand-mark { height: 64px; }
+  .site-header.is-scrolled .brand-mark { height: 40px; }
+}
 .brand-name {
   font-family: var(--font-display);
   font-size: 1.18rem;
@@ -365,10 +372,9 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   margin-bottom: 1.4rem;
 }
 .hero h1 {
-  font-size: clamp(1.1rem, calc((100vw - 4rem) / 28), 2.4rem);
-  line-height: 1.1;
+  font-size: clamp(1.7rem, 4.6vw, 2.4rem);
+  line-height: 1.12;
   margin-bottom: 0;
-  white-space: nowrap;
 }
 .hero h1 em {
   font-style: italic;
@@ -1780,6 +1786,103 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .poi-contact svg { width: 1.1rem; height: 1.1rem; flex: none; }
 
 /* ============================================================
+   INTERESSES PRÓXIMOS — popup do detalhe do imóvel
+   ============================================================ */
+.nearby-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 2.5rem 1rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+.nearby-loading svg { width: 2rem; height: 2rem; color: var(--accent); }
+
+.nearby-head { margin-bottom: 1.4rem; }
+.nearby-head .badge { gap: 0.4rem; }
+.nearby-head .badge svg { width: 0.95rem; height: 0.95rem; }
+.nearby-head h3 {
+  font-size: 1.55rem;
+  margin-top: 0.6rem;
+}
+.nearby-sub { color: var(--muted); font-size: 0.95rem; margin-top: 0.3rem; }
+
+.nearby-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.nearby-item {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.8rem 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease);
+}
+.nearby-item:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+
+.nearby-dist {
+  flex: none;
+  min-width: 4.2rem;
+  text-align: center;
+  padding: 0.45rem 0.5rem;
+  border-radius: var(--radius-s);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+.nearby-dist-unknown { background: var(--bg); color: var(--muted); }
+
+.nearby-info { flex: 1; min-width: 0; }
+.nearby-cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--gold-strong);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.nearby-cat svg { width: 0.95rem; height: 0.95rem; }
+.nearby-info h4 { font-size: 1.12rem; margin-top: 0.15rem; }
+.nearby-address {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin-top: 0.2rem;
+}
+.nearby-address svg { width: 0.95rem; height: 0.95rem; flex: none; color: var(--accent); }
+.nearby-address span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.nearby-route { flex: none; }
+.nearby-route svg { width: 1rem; height: 1rem; }
+
+.nearby-empty { color: var(--muted); font-size: 0.95rem; }
+
+.nearby-note {
+  margin-top: 1.1rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 560px) {
+  .nearby-item { flex-wrap: wrap; }
+  .nearby-route { width: 100%; justify-content: center; }
+}
+
+/* ============================================================
    GALERIA — transição suave entre fotos
    ============================================================ */
 .gallery-main img {
@@ -1842,10 +1945,17 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   .cal-caption { padding-right: 5.5rem; }
 
   .hero-content { padding: 6.5rem 0 6.5rem; }
-  .hero h1 { font-size: clamp(0.65rem, calc((100vw - 3.5rem) / 28), 1.4rem); }
+  .hero h1 { font-size: clamp(1.45rem, 6.2vw, 1.9rem); }
+  .hero-points { flex-direction: column; align-items: flex-start; gap: 0.55rem; }
   .hero-actions { flex-direction: column; width: 100%; gap: 0.75rem; }
   .hero-actions .btn { width: 100%; text-align: center; justify-content: center; }
   .scroll-hint { display: none; }
+
+  .cta-inner { padding: 3.5rem 0; }
+  .leantech-promo { padding: 3rem 0; }
+
+  /* fonte >= 16px evita zoom automático do iOS ao focar inputs */
+  .review-form input[type="text"], .review-form textarea { font-size: 16px; }
 
   .detail-cta { flex-direction: column; align-items: stretch; }
   .detail-cta .btn { width: 100%; }
@@ -1890,6 +2000,7 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 1rem;
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;

@@ -42,6 +42,10 @@ export async function loadPoints() {
   }
 }
 
+/** Pontos e categorias atualmente carregados (API ou fallback). */
+export const getPoints = () => points;
+export const getCategories = () => categories;
+
 const categoryOf = (point) => categories.find((c) => c.id === point.categoryId) ?? null;
 
 /* ---------- Card ---------- */

@@ -71,8 +71,9 @@ async function loadApartments() {
  *  Dados da empresa vinculada
  * ------------------------------------------------------------
  *  Busca /api/empresa?whatsapp=... e sobrescreve o SITE_CONFIG
- *  (marca, WhatsApp, endereço, mapa) com os dados cadastrados
- *  no banco. Se a API estiver fora, mantém o config.js.
+ *  (WhatsApp, endereço, mapa) com os dados cadastrados no banco.
+ *  O nome do site (brandName) é fixo e não é alterado pela empresa
+ *  vinculada. Se a API estiver fora, mantém o config.js.
  * ============================================================ */
 function formatWhatsAppDisplay(digits) {
   if (digits.length === 11) return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
@@ -89,11 +90,6 @@ async function loadCompany() {
     if (!response.ok) return;
     const empresa = await response.json();
     if (!empresa || !empresa.id) return;
-
-    if (empresa.name) {
-      SITE_CONFIG.brandName = empresa.name;
-      document.title = `${empresa.name} — Apartamentos para temporada em Ubatuba`;
-    }
 
     const digits = String(empresa.whatsapp ?? '').replace(/\D/g, '');
     if (digits) {

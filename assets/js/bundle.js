@@ -2,7 +2,7 @@
   // assets/js/config.js
   var SITE_CONFIG = {
     /** Nome exibido no topo do site e no rodapé. */
-    brandName: "Bem Estar",
+    brandName: "UB N' BEACH",
     /**
      * Número do WhatsApp com código do país (55) + DDD, somente dígitos.
      * Ex.: (12) 99735-3793  ->  '5512997353793'
@@ -714,345 +714,6 @@
     };
   }
 
-  // assets/js/reviews.js
-  var starFilled = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
-  var starEmpty = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
-  function starsHTML(nota, max = 5, interactive = false, name = "rating") {
-    const arr = [];
-    for (let i = 1; i <= max; i++) {
-      const filled = i <= nota;
-      arr.push(`
-      <button type="button" class="star-btn ${filled ? "filled" : ""}" data-value="${i}" ${interactive ? "" : "disabled"} aria-label="${i} estrela${i > 1 ? "s" : ""}">
-        ${filled ? starFilled : starEmpty}
-      </button>
-    `);
-    }
-    return `<div class="stars${interactive ? " interactive" : ""}" data-stars="${name}">${arr.join("")}</div>`;
-  }
-  function formatDateBR(iso) {
-    try {
-      const d = new Date(iso);
-      return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
-    } catch {
-      return iso;
-    }
-  }
-  function avaliacaoItemHTML(av) {
-    return `
-    <article class="review-item">
-      <header class="review-header">
-        <strong>${av.nome}</strong>
-        <time>${formatDateBR(av.data)}</time>
-      </header>
-      <div class="review-stars">${starsHTML(av.nota)}</div>
-      ${av.comentario ? `<p class="review-text">${av.comentario}</p>` : ""}
-    </article>
-  `;
-  }
-  function distribuicaoHTML(dist, total) {
-    const bars = [5, 4, 3, 2, 1].map((n) => {
-      const count = dist[n] || 0;
-      const pct = total ? count / total * 100 : 0;
-      return `
-      <div class="dist-row">
-        <span class="dist-label">${n} <span class="star-icon">${starFilled}</span></span>
-        <div class="dist-bar"><span style="width:${pct}%"></span></div>
-        <span class="dist-count">${count}</span>
-      </div>
-    `;
-    }).join("");
-    return `<div class="review-distribuicao">${bars}</div>`;
-  }
-  function openReviewsModal(imovelId, imovelName, onClose) {
-    let currentData = null;
-    async function loadReviews() {
-      try {
-        const res = await fetch(`/api/imoveis/${imovelId}/avaliacoes`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        currentData = await res.json();
-        render();
-      } catch (e) {
-        console.error("Erro ao carregar avalia\xE7\xF5es:", e);
-        document.getElementById("reviewsList").innerHTML = '<p class="review-error">Erro ao carregar avalia\xE7\xF5es.</p>';
-      }
-    }
-    function render() {
-      const { media, total, distribuicao, avaliacoes } = currentData || { media: 0, total: 0, distribuicao: {}, avaliacoes: [] };
-      document.getElementById("reviewsSummary").innerHTML = `
-      <div class="review-summary">
-        <div class="review-score">
-          <span class="score-value">${media.toFixed(1)}</span>
-          <div class="score-stars">${starsHTML(Math.round(media))}</div>
-          <span class="score-total">${total} avalia\xE7\xE3o${total !== 1 ? "\xF5es" : ""}</span>
-        </div>
-        ${distribuicaoHTML(distribuicao, total)}
-      </div>
-    `;
-      const list = document.getElementById("reviewsList");
-      if (avaliacoes && avaliacoes.length) {
-        list.innerHTML = avaliacoes.map(avaliacaoItemHTML).join("");
-      } else {
-        list.innerHTML = '<p class="review-empty">Nenhuma avalia\xE7\xE3o ainda. Seja o primeiro a avaliar!</p>';
-      }
-    }
-    let selectedRating = 0;
-    const html = `
-    <div class="reviews-modal">
-      <header class="reviews-header">
-        <h3>Avalia\xE7\xF5es <span class="reviews-property">${imovelName}</span></h3>
-      </header>
-      <div class="reviews-body">
-        <section id="reviewsSummary" class="reviews-summary-section"></section>
-        <section class="reviews-form-section">
-          <h4>Deixe sua avalia\xE7\xE3o</h4>
-          <form id="reviewForm" class="review-form">
-            <div class="form-group">
-              <label>Sua nota</label>
-              <div class="stars interactive" data-stars="new" id="newRatingStars">
-                ${[1, 2, 3, 4, 5].map((i) => `<button type="button" class="star-btn" data-value="${i}" aria-label="${i} estrela${i > 1 ? "s" : ""}">${starEmpty}</button>`).join("")}
-              </div>
-              <input type="hidden" name="nota" id="notaInput" required>
-            </div>
-            <div class="form-group">
-              <label for="nomeInput">Seu nome <span class="required">*</span></label>
-              <input type="text" id="nomeInput" name="nome" required maxlength="100" placeholder="Como voc\xEA quer ser identificado">
-            </div>
-            <div class="form-group">
-              <label for="comentarioInput">Seu coment\xE1rio (opcional)</label>
-              <textarea id="comentarioInput" name="comentario" rows="3" maxlength="500" placeholder="Conte sua experi\xEAncia..."></textarea>
-            </div>
-            <button type="submit" class="btn btn-primary">Enviar avalia\xE7\xE3o</button>
-          </form>
-        </section>
-        <section class="reviews-list-section">
-          <h4>O que dizem os h\xF3spedes</h4>
-          <div id="reviewsList" class="reviews-list"></div>
-        </section>
-      </div>
-    </div>
-  `;
-    const modal = openModal(html, { variant: "modal-reviews", size: "large" });
-    const originalClose = modal.close;
-    const customClose = () => {
-      if (onClose) onClose();
-      originalClose();
-    };
-    modal.close = customClose;
-    const closeBtn = modal.sheet.querySelector(".modal-close");
-    if (closeBtn) {
-      closeBtn.replaceWith(closeBtn.cloneNode(true));
-      modal.sheet.querySelector(".modal-close").addEventListener("click", customClose);
-    }
-    const starsContainer = modal.body.querySelector("#newRatingStars");
-    starsContainer.querySelectorAll(".star-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        selectedRating = parseInt(btn.dataset.value, 10);
-        modal.body.querySelector("#notaInput").value = selectedRating;
-        starsContainer.querySelectorAll(".star-btn").forEach((b, i) => {
-          b.classList.toggle("filled", i < selectedRating);
-          b.innerHTML = i < selectedRating ? starFilled : starEmpty;
-        });
-      });
-      btn.addEventListener("mouseenter", () => {
-        const val = parseInt(btn.dataset.value, 10);
-        starsContainer.querySelectorAll(".star-btn").forEach((b, i) => {
-          b.innerHTML = i < val ? starFilled : starEmpty;
-        });
-      });
-    });
-    starsContainer.addEventListener("mouseleave", () => {
-      starsContainer.querySelectorAll(".star-btn").forEach((b, i) => {
-        b.classList.toggle("filled", i < selectedRating);
-        b.innerHTML = i < selectedRating ? starFilled : starEmpty;
-      });
-    });
-    modal.body.querySelector("#reviewForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const form = e.target;
-      const nome = form.nome.value.trim();
-      const nota = parseInt(form.nota.value, 10);
-      const comentario = form.comentario.value.trim();
-      if (!nome || !nota) return;
-      const btn = form.querySelector('button[type="submit"]');
-      btn.disabled = true;
-      btn.textContent = "Enviando...";
-      try {
-        const res = await fetch(`/api/imoveis/${imovelId}/avaliacoes`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ nome, nota, comentario })
-        });
-        if (!res.ok) throw new Error("Erro ao enviar");
-        form.reset();
-        selectedRating = 0;
-        starsContainer.querySelectorAll(".star-btn").forEach((b, i) => {
-          b.classList.remove("filled");
-          b.innerHTML = starEmpty;
-        });
-        modal.body.querySelector("#notaInput").value = "";
-        await loadReviews();
-      } catch (err) {
-        alert("Erro ao enviar avalia\xE7\xE3o: " + err.message);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = "Enviar avalia\xE7\xE3o";
-      }
-    });
-    loadReviews();
-  }
-
-  // assets/js/detail.js
-  var brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-  function esc(text) {
-    return String(text ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-  }
-  function bedsBreakdown(a) {
-    const parts = [];
-    if (a.doubleBeds > 0) parts.push(plural(a.doubleBeds, "cama de casal", "camas de casal"));
-    if (a.singleBeds > 0) parts.push(plural(a.singleBeds, "cama de solteiro", "camas de solteiro"));
-    if (a.bunkBeds > 0) parts.push(plural(a.bunkBeds, "beliche", "beliches"));
-    if (a.sofaBeds > 0) parts.push(plural(a.sofaBeds, "sof\xE1-cama", "sof\xE1s-cama"));
-    return parts.join(" \xB7 ");
-  }
-  function openApartmentDetail(apartment) {
-    const images = apartment.images.length ? apartment.images : [""];
-    const meta = [
-      { icon: ICONS.users, label: formatGuests(apartment.capacity) },
-      { icon: ICONS.bedroom, label: plural(apartment.bedrooms, "quarto", "quartos") },
-      ...apartment.suites > 0 ? [{ icon: ICONS.bedroom, label: plural(apartment.suites, "su\xEDte", "su\xEDtes") }] : [],
-      ...apartment.beds > 0 ? [{ icon: ICONS.bed, label: `${plural(apartment.beds, "cama", "camas")} (${bedsBreakdown(apartment)})` }] : [],
-      { icon: ICONS.bath, label: plural(apartment.bathrooms, "banheiro", "banheiros") },
-      ...apartment.parkingSpaces > 0 ? [{ icon: ICONS.pin, label: plural(apartment.parkingSpaces, "vaga de garagem", "vagas de garagem") }] : [],
-      ...apartment.sizeM2 ? [{ icon: ICONS.area, label: `${apartment.sizeM2} m\xB2` }] : []
-    ];
-    const rules = [
-      apartment.checkin && { label: "Check-in", value: `a partir das ${apartment.checkin}` },
-      apartment.checkout && { label: "Check-out", value: `at\xE9 as ${apartment.checkout}` },
-      apartment.minStay > 0 && { label: "Estadia m\xEDnima", value: plural(apartment.minStay, "noite", "noites") },
-      { label: "Aceita animais", value: apartment.petsAllowed ? "Sim" : "N\xE3o" },
-      { label: "Permite eventos", value: apartment.eventsAllowed ? "Sim" : "N\xE3o" },
-      { label: "Permite fumar", value: apartment.smokingAllowed ? "Sim" : "N\xE3o" }
-    ].filter(Boolean);
-    const costs = [
-      apartment.dailyPrice && { label: "Di\xE1ria (semana)", value: brl.format(apartment.dailyPrice) },
-      apartment.weekendPrice && { label: "Di\xE1ria (fim de semana)", value: brl.format(apartment.weekendPrice) },
-      apartment.cleaningFee && { label: "Taxa de limpeza", value: brl.format(apartment.cleaningFee) },
-      apartment.securityDeposit && { label: "Cau\xE7\xE3o", value: brl.format(apartment.securityDeposit) }
-    ].filter(Boolean);
-    const html = `
-    <article class="detail">
-      <div class="detail-col-left">
-        <div class="detail-gallery" data-gallery-mount></div>
-
-        <div class="detail-blocks">
-          ${apartment.amenities.length ? `<div class="detail-block">
-                   <h4>Comodidades</h4>
-                   <ul class="detail-amenities">
-                     ${apartment.amenities.map((a) => `<li>${amenityIcon(a)}<span>${esc(a)}</span></li>`).join("")}
-                   </ul>
-                 </div>` : ""}
-
-          <div class="detail-block">
-            <h4>Regras da estadia</h4>
-            <ul class="detail-facts">
-              ${rules.map((r) => `<li><span>${esc(r.label)}</span><strong>${esc(r.value)}</strong></li>`).join("")}
-            </ul>
-            ${apartment.houseRules ? `<p class="detail-notes">${esc(apartment.houseRules)}</p>` : ""}
-            ${apartment.guestInstructions ? `<p class="detail-notes">${esc(apartment.guestInstructions)}</p>` : ""}
-            ${!apartment.houseRules && !apartment.guestInstructions ? `<p class="detail-notes">\u{1F511}Para entrar na casa:
-O port\xE3o fica encostado, na porta da sala tem o cofre com a chave dentro (senha 4995). Coloque a senha e abra a tampa, a chave da casa e do port\xE3o estar\xE1 l\xE1 dentro
-\u27A1\uFE0FPorta cadeado: *4995*
-
-\u27A1\uFE0FWi-Fi
-Rede: Recanto Uba
-Senha: recantouba23
-
-\u267B\uFE0FCOLETA DE LIXO (manh\xE3)
-ter\xE7a, quinta e s\xE1bado
-
-\u{1F6AB}PROIBIDO SOM AUTOMOTIVO
-
-\u{1F3A6} Existe uma c\xE2mera de seguran\xE7a voltada para o port\xE3o de entrada.
-
-\u{1F3CA}\u2640\uFE0F A PISCINA PODE ser usada ap\xF3s as 23:00hs, apenas pedimos pra controlar o barulho e n\xE3o pular, pra respeitarmos os vizinhos.
-
-
-Ol\xE1, boa noite , do lado de fora da casa de m\xE1quina tem 2 interruptor, lado esquerdo \xE9 o Led dentro da piscina , da direita liga os jatos de hidromassagem, com essa da hidromassagem ligado , abre a porta da casa de m\xE1quina e abre aos poucos o registro que esta escrito cascata nele ,,, quando quiser press\xE3o mais forte na hidromassagem tem que fechar a cascata , pois se utiliza apenas um motor , quando encerrar o uso , s\xF3 desligar o interruptor do lado de fora da direita
-
-Lembrando que amanh\xE3 cedo ir\xE1 ligar automaticamente, para filtrar a \xE1gua, deixe que vai desligar automaticamente no timer</p>` : ""}
-          </div>
-        </div>
-      </div>
-
-      <div class="detail-info">
-        <div class="detail-head">
-          <div>
-            ${apartment.featured ? '<span class="badge badge-gold">Destaque</span>' : ""}
-            <span class="badge ${apartment.available ? "badge-open" : "badge-closed"}">
-              ${apartment.available ? "Dispon\xEDvel" : "Indispon\xEDvel no momento"}
-            </span>
-            <h3>${esc(apartment.name)}</h3>
-            <p class="detail-location">${ICONS.pin}<span>${esc(apartment.location)}</span></p>
-            ${apartment.address ? `<p class="detail-address">${esc(apartment.address)}</p>` : ""}
-            ${apartment.referencePoint ? `<p class="detail-address">${esc(apartment.referencePoint)}</p>` : ""}
-          </div>
-        </div>
-
-        <ul class="detail-meta">
-          ${meta.map((m) => `<li>${m.icon}<span>${esc(m.label)}</span></li>`).join("")}
-        </ul>
-
-        ${apartment.description ? `<div class="detail-block">
-                 <h4>Sobre o im\xF3vel</h4>
-                 <p>${esc(apartment.description)}</p>
-               </div>` : ""}
-
-        ${costs.length ? `<div class="detail-block">
-                 <h4>Valores</h4>
-                 <ul class="detail-facts">
-                   ${costs.map((c) => `<li><span>${esc(c.label)}</span><strong>${esc(c.value)}</strong></li>`).join("")}
-                 </ul>
-               </div>` : ""}
-
-        ${apartment.priceNotes ? `<div class="detail-block">
-                 <h4>Observa\xE7\xF5es sobre os valores</h4>
-                 <p>${esc(apartment.priceNotes)}</p>
-               </div>` : ""}
-      </div>
-
-      <div class="detail-cta">
-        <div class="detail-price">
-          <span class="detail-price-label">Investimento</span>
-          <strong>${apartment.price ? esc(apartment.price) : "Sob consulta"}</strong>
-        </div>
-        <div class="detail-actions">
-          ${apartment.available ? `<button type="button" class="btn btn-primary btn-lg" data-action="rent">Alugar ${ICONS.arrowRight}</button>` : '<p class="detail-unavailable">Este im\xF3vel n\xE3o est\xE1 dispon\xEDvel no momento. Fale conosco para conhecer outras op\xE7\xF5es.</p>'}
-          <button type="button" class="btn btn-secondary" data-action="reviews">Avaliar ${ICONS.star || ""}</button>
-        </div>
-      </div>
-    </article>`;
-    const modal = openModal(html, { variant: "modal-detail" });
-    const gallery = createGallery(modal.body.querySelector("[data-gallery-mount]"), images, {
-      alt: `Foto do ${apartment.name}`
-    });
-    modal.body.querySelector('[data-action="rent"]')?.addEventListener("click", () => {
-      modal.close();
-      setTimeout(() => openBooking(apartment), 240);
-    });
-    const detailOverlay = modal.sheet.closest(".modal-overlay");
-    modal.body.querySelector('[data-action="reviews"]')?.addEventListener("click", () => {
-      if (detailOverlay) detailOverlay.style.display = "none";
-      openReviewsModal(apartment.id, apartment.name, () => {
-        if (detailOverlay) detailOverlay.style.display = "flex";
-      });
-    });
-    const originalClose = modal.close;
-    modal.close = () => {
-      gallery.destroy();
-      originalClose();
-    };
-  }
-
   // assets/js/point-modal.js
   function formatPhoneDisplay(phone) {
     const digits = String(phone || "").replace(/\D/g, "");
@@ -1061,8 +722,8 @@ Lembrando que amanh\xE3 cedo ir\xE1 ligar automaticamente, para filtrar a \xE1gu
     return phone;
   }
   function mapsQuery(point2) {
-    const hasCoords = typeof point2.latitude === "number" && typeof point2.longitude === "number" && (point2.latitude !== 0 || point2.longitude !== 0);
-    if (hasCoords) return `${point2.latitude},${point2.longitude}`;
+    const hasCoords2 = typeof point2.latitude === "number" && typeof point2.longitude === "number" && (point2.latitude !== 0 || point2.longitude !== 0);
+    if (hasCoords2) return `${point2.latitude},${point2.longitude}`;
     return [point2.address || [point2.name, point2.city, point2.state].filter(Boolean).join(", ")].filter(Boolean).join(", ");
   }
   function openPointModal(point2, category) {
@@ -1401,6 +1062,8 @@ Lembrando que amanh\xE3 cedo ir\xE1 ligar automaticamente, para filtrar a \xE1gu
     } catch {
     }
   }
+  var getPoints = () => points;
+  var getCategories = () => categories;
   var categoryOf = (point2) => categories.find((c) => c.id === point2.categoryId) ?? null;
   function pointCard(point2) {
     const category = categoryOf(point2);
@@ -1489,6 +1152,449 @@ Lembrando que amanh\xE3 cedo ir\xE1 ligar automaticamente, para filtrar a \xE1gu
     show("all");
   }
 
+  // assets/js/nearby.js
+  var NEARBY_LIMIT = 8;
+  var esc = (text) => String(text ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+  var hasCoords = (lat, lng) => typeof lat === "number" && typeof lng === "number" && (lat !== 0 || lng !== 0);
+  function haversineKm(latA, lngA, latB, lngB) {
+    const R = 6371;
+    const toRad = (deg) => deg * Math.PI / 180;
+    const dLat = toRad(latB - latA);
+    const dLng = toRad(lngB - lngA);
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(latA)) * Math.cos(toRad(latB)) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+  var formatDistance = (km) => km < 1 ? `${Math.round(km * 1e3)} m` : `${km.toFixed(1).replace(".", ",")} km`;
+  var geocodeCache = /* @__PURE__ */ new Map();
+  function geocode(query) {
+    if (geocodeCache.has(query)) return geocodeCache.get(query);
+    const promise = (async () => {
+      try {
+        const url = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=pt-BR&q=" + encodeURIComponent(query);
+        const response = await fetch(url, { headers: { Accept: "application/json" } });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        const hit = Array.isArray(data) && data[0];
+        const lat = Number(hit?.lat);
+        const lng = Number(hit?.lon);
+        return hasCoords(lat, lng) ? { latitude: lat, longitude: lng } : null;
+      } catch {
+        return null;
+      }
+    })();
+    geocodeCache.set(query, promise);
+    return promise;
+  }
+  async function resolveOrigin(apartment) {
+    if (hasCoords(apartment.latitude, apartment.longitude)) {
+      return { latitude: apartment.latitude, longitude: apartment.longitude };
+    }
+    const query = apartment.address || apartment.location;
+    if (!query) return null;
+    return geocode(query);
+  }
+  function nearbyItem(point2, category, distanceKm, originQuery) {
+    const location = point2.address || [point2.neighborhood, point2.city].filter(Boolean).join(" \xB7 ");
+    const destination = hasCoords(point2.latitude, point2.longitude) ? `${point2.latitude},${point2.longitude}` : point2.address || [point2.name, point2.city, point2.state].filter(Boolean).join(", ");
+    const directionsUrl = "https://www.google.com/maps/dir/?api=1" + (originQuery ? `&origin=${encodeURIComponent(originQuery)}` : "") + `&destination=${encodeURIComponent(destination)}`;
+    return `
+    <li class="nearby-item">
+      <span class="nearby-dist ${distanceKm == null ? "nearby-dist-unknown" : ""}">
+        ${distanceKm == null ? "\u2014" : formatDistance(distanceKm)}
+      </span>
+      <div class="nearby-info">
+        <span class="nearby-cat">
+          ${categoryIcon(category?.icon || category?.slug || "")}<span>${esc(category?.name ?? "Ponto de interesse")}</span>
+        </span>
+        <h4>${esc(point2.name)}</h4>
+        ${location ? `<p class="nearby-address">${ICONS.pin}<span>${esc(location)}</span></p>` : ""}
+      </div>
+      <a class="btn btn-outline btn-sm nearby-route" href="${directionsUrl}" target="_blank" rel="noopener">
+        ${ICONS.compass}<span>Como chegar</span>
+      </a>
+    </li>`;
+  }
+  function nearbyHtml(apartment, origin, ranked) {
+    const categories2 = getCategories();
+    const categoryOf2 = (point2) => categories2.find((c) => c.id === point2.categoryId) ?? null;
+    const originQuery = origin ? `${origin.latitude},${origin.longitude}` : apartment.address || apartment.location || "";
+    const withDistance = ranked.filter((r) => r.distanceKm != null).length;
+    const note = !origin ? "N\xE3o foi poss\xEDvel localizar o im\xF3vel automaticamente \u2014 exibindo todos os pontos cadastrados, sem dist\xE2ncias." : withDistance === 0 ? "As dist\xE2ncias aparecem quando os pontos t\xEAm localiza\xE7\xE3o cadastrada no sistema." : "Dist\xE2ncias em linha reta a partir do im\xF3vel.";
+    return `
+    <article class="nearby">
+      <header class="nearby-head">
+        <span class="badge badge-gold">${ICONS.compass}<span>Interesses pr\xF3ximos</span></span>
+        <h3>Perto de ${esc(apartment.name)}</h3>
+        <p class="nearby-sub">${esc(apartment.location)}</p>
+      </header>
+
+      ${ranked.length ? `<ol class="nearby-list">
+              ${ranked.map(({ point: point2, distanceKm }) => nearbyItem(point2, categoryOf2(point2), distanceKm, originQuery)).join("")}
+            </ol>` : '<p class="nearby-empty">Nenhum ponto de interesse cadastrado no momento.</p>'}
+
+      <p class="nearby-note">${note}</p>
+    </article>`;
+  }
+  async function openNearbyModal(apartment, onClose) {
+    const modal = openModal(
+      `<div class="nearby nearby-loading">${ICONS.compass}<p>Buscando os pontos mais pr\xF3ximos\u2026</p></div>`,
+      { onClose }
+    );
+    const origin = await resolveOrigin(apartment);
+    if (!modal.sheet.isConnected) return;
+    const ranked = getPoints().map((point2) => ({
+      point: point2,
+      distanceKm: origin && hasCoords(point2.latitude, point2.longitude) ? haversineKm(origin.latitude, origin.longitude, point2.latitude, point2.longitude) : null
+    })).sort((a, b) => a.distanceKm == null ? 1 : b.distanceKm == null ? -1 : a.distanceKm - b.distanceKm).slice(0, NEARBY_LIMIT);
+    modal.body.innerHTML = nearbyHtml(apartment, origin, ranked);
+  }
+
+  // assets/js/reviews.js
+  var starFilled = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
+  var starEmpty = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
+  function starsHTML(nota, max = 5, interactive = false, name = "rating") {
+    const arr = [];
+    for (let i = 1; i <= max; i++) {
+      const filled = i <= nota;
+      arr.push(`
+      <button type="button" class="star-btn ${filled ? "filled" : ""}" data-value="${i}" ${interactive ? "" : "disabled"} aria-label="${i} estrela${i > 1 ? "s" : ""}">
+        ${filled ? starFilled : starEmpty}
+      </button>
+    `);
+    }
+    return `<div class="stars${interactive ? " interactive" : ""}" data-stars="${name}">${arr.join("")}</div>`;
+  }
+  function formatDateBR(iso) {
+    try {
+      const d = new Date(iso);
+      return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+    } catch {
+      return iso;
+    }
+  }
+  function avaliacaoItemHTML(av) {
+    return `
+    <article class="review-item">
+      <header class="review-header">
+        <strong>${av.nome}</strong>
+        <time>${formatDateBR(av.data)}</time>
+      </header>
+      <div class="review-stars">${starsHTML(av.nota)}</div>
+      ${av.comentario ? `<p class="review-text">${av.comentario}</p>` : ""}
+    </article>
+  `;
+  }
+  function distribuicaoHTML(dist, total) {
+    const bars = [5, 4, 3, 2, 1].map((n) => {
+      const count = dist[n] || 0;
+      const pct = total ? count / total * 100 : 0;
+      return `
+      <div class="dist-row">
+        <span class="dist-label">${n} <span class="star-icon">${starFilled}</span></span>
+        <div class="dist-bar"><span style="width:${pct}%"></span></div>
+        <span class="dist-count">${count}</span>
+      </div>
+    `;
+    }).join("");
+    return `<div class="review-distribuicao">${bars}</div>`;
+  }
+  function openReviewsModal(imovelId, imovelName, onClose) {
+    let currentData = null;
+    async function loadReviews() {
+      try {
+        const res = await fetch(`/api/imoveis/${imovelId}/avaliacoes`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        currentData = await res.json();
+        render();
+      } catch (e) {
+        console.error("Erro ao carregar avalia\xE7\xF5es:", e);
+        document.getElementById("reviewsList").innerHTML = '<p class="review-error">Erro ao carregar avalia\xE7\xF5es.</p>';
+      }
+    }
+    function render() {
+      const { media, total, distribuicao, avaliacoes } = currentData || { media: 0, total: 0, distribuicao: {}, avaliacoes: [] };
+      document.getElementById("reviewsSummary").innerHTML = `
+      <div class="review-summary">
+        <div class="review-score">
+          <span class="score-value">${media.toFixed(1)}</span>
+          <div class="score-stars">${starsHTML(Math.round(media))}</div>
+          <span class="score-total">${total} avalia\xE7\xE3o${total !== 1 ? "\xF5es" : ""}</span>
+        </div>
+        ${distribuicaoHTML(distribuicao, total)}
+      </div>
+    `;
+      const list = document.getElementById("reviewsList");
+      if (avaliacoes && avaliacoes.length) {
+        list.innerHTML = avaliacoes.map(avaliacaoItemHTML).join("");
+      } else {
+        list.innerHTML = '<p class="review-empty">Nenhuma avalia\xE7\xE3o ainda. Seja o primeiro a avaliar!</p>';
+      }
+    }
+    let selectedRating = 0;
+    const html = `
+    <div class="reviews-modal">
+      <header class="reviews-header">
+        <h3>Avalia\xE7\xF5es <span class="reviews-property">${imovelName}</span></h3>
+      </header>
+      <div class="reviews-body">
+        <section id="reviewsSummary" class="reviews-summary-section"></section>
+        <section class="reviews-form-section">
+          <h4>Deixe sua avalia\xE7\xE3o</h4>
+          <form id="reviewForm" class="review-form">
+            <div class="form-group">
+              <label>Sua nota</label>
+              <div class="stars interactive" data-stars="new" id="newRatingStars">
+                ${[1, 2, 3, 4, 5].map((i) => `<button type="button" class="star-btn" data-value="${i}" aria-label="${i} estrela${i > 1 ? "s" : ""}">${starEmpty}</button>`).join("")}
+              </div>
+              <input type="hidden" name="nota" id="notaInput" required>
+            </div>
+            <div class="form-group">
+              <label for="nomeInput">Seu nome <span class="required">*</span></label>
+              <input type="text" id="nomeInput" name="nome" required maxlength="100" placeholder="Como voc\xEA quer ser identificado">
+            </div>
+            <div class="form-group">
+              <label for="comentarioInput">Seu coment\xE1rio (opcional)</label>
+              <textarea id="comentarioInput" name="comentario" rows="3" maxlength="500" placeholder="Conte sua experi\xEAncia..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Enviar avalia\xE7\xE3o</button>
+          </form>
+        </section>
+        <section class="reviews-list-section">
+          <h4>O que dizem os h\xF3spedes</h4>
+          <div id="reviewsList" class="reviews-list"></div>
+        </section>
+      </div>
+    </div>
+  `;
+    const modal = openModal(html, { variant: "modal-reviews", size: "large" });
+    const originalClose = modal.close;
+    const customClose = () => {
+      if (onClose) onClose();
+      originalClose();
+    };
+    modal.close = customClose;
+    const closeBtn = modal.sheet.querySelector(".modal-close");
+    if (closeBtn) {
+      closeBtn.replaceWith(closeBtn.cloneNode(true));
+      modal.sheet.querySelector(".modal-close").addEventListener("click", customClose);
+    }
+    const starsContainer = modal.body.querySelector("#newRatingStars");
+    starsContainer.querySelectorAll(".star-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        selectedRating = parseInt(btn.dataset.value, 10);
+        modal.body.querySelector("#notaInput").value = selectedRating;
+        starsContainer.querySelectorAll(".star-btn").forEach((b, i) => {
+          b.classList.toggle("filled", i < selectedRating);
+          b.innerHTML = i < selectedRating ? starFilled : starEmpty;
+        });
+      });
+      btn.addEventListener("mouseenter", () => {
+        const val = parseInt(btn.dataset.value, 10);
+        starsContainer.querySelectorAll(".star-btn").forEach((b, i) => {
+          b.innerHTML = i < val ? starFilled : starEmpty;
+        });
+      });
+    });
+    starsContainer.addEventListener("mouseleave", () => {
+      starsContainer.querySelectorAll(".star-btn").forEach((b, i) => {
+        b.classList.toggle("filled", i < selectedRating);
+        b.innerHTML = i < selectedRating ? starFilled : starEmpty;
+      });
+    });
+    modal.body.querySelector("#reviewForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const nome = form.nome.value.trim();
+      const nota = parseInt(form.nota.value, 10);
+      const comentario = form.comentario.value.trim();
+      if (!nome || !nota) return;
+      const btn = form.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      btn.textContent = "Enviando...";
+      try {
+        const res = await fetch(`/api/imoveis/${imovelId}/avaliacoes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nome, nota, comentario })
+        });
+        if (!res.ok) throw new Error("Erro ao enviar");
+        form.reset();
+        selectedRating = 0;
+        starsContainer.querySelectorAll(".star-btn").forEach((b, i) => {
+          b.classList.remove("filled");
+          b.innerHTML = starEmpty;
+        });
+        modal.body.querySelector("#notaInput").value = "";
+        await loadReviews();
+      } catch (err) {
+        alert("Erro ao enviar avalia\xE7\xE3o: " + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Enviar avalia\xE7\xE3o";
+      }
+    });
+    loadReviews();
+  }
+
+  // assets/js/detail.js
+  var brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+  function esc2(text) {
+    return String(text ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+  }
+  function bedsBreakdown(a) {
+    const parts = [];
+    if (a.doubleBeds > 0) parts.push(plural(a.doubleBeds, "cama de casal", "camas de casal"));
+    if (a.singleBeds > 0) parts.push(plural(a.singleBeds, "cama de solteiro", "camas de solteiro"));
+    if (a.bunkBeds > 0) parts.push(plural(a.bunkBeds, "beliche", "beliches"));
+    if (a.sofaBeds > 0) parts.push(plural(a.sofaBeds, "sof\xE1-cama", "sof\xE1s-cama"));
+    return parts.join(" \xB7 ");
+  }
+  function openApartmentDetail(apartment) {
+    const images = apartment.images.length ? apartment.images : [""];
+    const meta = [
+      { icon: ICONS.users, label: formatGuests(apartment.capacity) },
+      { icon: ICONS.bedroom, label: plural(apartment.bedrooms, "quarto", "quartos") },
+      ...apartment.suites > 0 ? [{ icon: ICONS.bedroom, label: plural(apartment.suites, "su\xEDte", "su\xEDtes") }] : [],
+      ...apartment.beds > 0 ? [{ icon: ICONS.bed, label: `${plural(apartment.beds, "cama", "camas")} (${bedsBreakdown(apartment)})` }] : [],
+      { icon: ICONS.bath, label: plural(apartment.bathrooms, "banheiro", "banheiros") },
+      ...apartment.parkingSpaces > 0 ? [{ icon: ICONS.pin, label: plural(apartment.parkingSpaces, "vaga de garagem", "vagas de garagem") }] : [],
+      ...apartment.sizeM2 ? [{ icon: ICONS.area, label: `${apartment.sizeM2} m\xB2` }] : []
+    ];
+    const rules = [
+      apartment.checkin && { label: "Check-in", value: `a partir das ${apartment.checkin}` },
+      apartment.checkout && { label: "Check-out", value: `at\xE9 as ${apartment.checkout}` },
+      apartment.minStay > 0 && { label: "Estadia m\xEDnima", value: plural(apartment.minStay, "noite", "noites") },
+      { label: "Aceita animais", value: apartment.petsAllowed ? "Sim" : "N\xE3o" },
+      { label: "Permite eventos", value: apartment.eventsAllowed ? "Sim" : "N\xE3o" },
+      { label: "Permite fumar", value: apartment.smokingAllowed ? "Sim" : "N\xE3o" }
+    ].filter(Boolean);
+    const costs = [
+      apartment.dailyPrice && { label: "Di\xE1ria (semana)", value: brl.format(apartment.dailyPrice) },
+      apartment.weekendPrice && { label: "Di\xE1ria (fim de semana)", value: brl.format(apartment.weekendPrice) },
+      apartment.cleaningFee && { label: "Taxa de limpeza", value: brl.format(apartment.cleaningFee) },
+      apartment.securityDeposit && { label: "Cau\xE7\xE3o", value: brl.format(apartment.securityDeposit) }
+    ].filter(Boolean);
+    const html = `
+    <article class="detail">
+      <div class="detail-col-left">
+        <div class="detail-gallery" data-gallery-mount></div>
+
+        <div class="detail-blocks">
+          ${apartment.amenities.length ? `<div class="detail-block">
+                   <h4>Comodidades</h4>
+                   <ul class="detail-amenities">
+                     ${apartment.amenities.map((a) => `<li>${amenityIcon(a)}<span>${esc2(a)}</span></li>`).join("")}
+                   </ul>
+                 </div>` : ""}
+
+          <div class="detail-block">
+            <h4>Regras da estadia</h4>
+            <ul class="detail-facts">
+              ${rules.map((r) => `<li><span>${esc2(r.label)}</span><strong>${esc2(r.value)}</strong></li>`).join("")}
+            </ul>
+            ${apartment.houseRules ? `<p class="detail-notes">${esc2(apartment.houseRules)}</p>` : ""}
+            ${apartment.guestInstructions ? `<p class="detail-notes">${esc2(apartment.guestInstructions)}</p>` : ""}
+            ${!apartment.houseRules && !apartment.guestInstructions ? `<p class="detail-notes">\u{1F511}Para entrar na casa:
+O port\xE3o fica encostado, na porta da sala tem o cofre com a chave dentro (senha 4995). Coloque a senha e abra a tampa, a chave da casa e do port\xE3o estar\xE1 l\xE1 dentro
+\u27A1\uFE0FPorta cadeado: *4995*
+
+\u27A1\uFE0FWi-Fi
+Rede: Recanto Uba
+Senha: recantouba23
+
+\u267B\uFE0FCOLETA DE LIXO (manh\xE3)
+ter\xE7a, quinta e s\xE1bado
+
+\u{1F6AB}PROIBIDO SOM AUTOMOTIVO
+
+\u{1F3A6} Existe uma c\xE2mera de seguran\xE7a voltada para o port\xE3o de entrada.
+
+\u{1F3CA}\u2640\uFE0F A PISCINA PODE ser usada ap\xF3s as 23:00hs, apenas pedimos pra controlar o barulho e n\xE3o pular, pra respeitarmos os vizinhos.
+
+
+Ol\xE1, boa noite , do lado de fora da casa de m\xE1quina tem 2 interruptor, lado esquerdo \xE9 o Led dentro da piscina , da direita liga os jatos de hidromassagem, com essa da hidromassagem ligado , abre a porta da casa de m\xE1quina e abre aos poucos o registro que esta escrito cascata nele ,,, quando quiser press\xE3o mais forte na hidromassagem tem que fechar a cascata , pois se utiliza apenas um motor , quando encerrar o uso , s\xF3 desligar o interruptor do lado de fora da direita
+
+Lembrando que amanh\xE3 cedo ir\xE1 ligar automaticamente, para filtrar a \xE1gua, deixe que vai desligar automaticamente no timer</p>` : ""}
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-info">
+        <div class="detail-head">
+          <div>
+            ${apartment.featured ? '<span class="badge badge-gold">Destaque</span>' : ""}
+            <h3>${esc2(apartment.name)}</h3>
+            <p class="detail-location">${ICONS.pin}<span>${esc2(apartment.location)}</span></p>
+            ${apartment.address ? `<p class="detail-address">${esc2(apartment.address)}</p>` : ""}
+            ${apartment.referencePoint ? `<p class="detail-address">${esc2(apartment.referencePoint)}</p>` : ""}
+          </div>
+        </div>
+
+        <ul class="detail-meta">
+          ${meta.map((m) => `<li>${m.icon}<span>${esc2(m.label)}</span></li>`).join("")}
+        </ul>
+
+        ${apartment.description ? `<div class="detail-block">
+                 <h4>Sobre o im\xF3vel</h4>
+                 <p>${esc2(apartment.description)}</p>
+               </div>` : ""}
+
+        ${costs.length ? `<div class="detail-block">
+                 <h4>Valores</h4>
+                 <ul class="detail-facts">
+                   ${costs.map((c) => `<li><span>${esc2(c.label)}</span><strong>${esc2(c.value)}</strong></li>`).join("")}
+                 </ul>
+               </div>` : ""}
+
+        ${apartment.priceNotes ? `<div class="detail-block">
+                 <h4>Observa\xE7\xF5es sobre os valores</h4>
+                 <p>${esc2(apartment.priceNotes)}</p>
+               </div>` : ""}
+
+        <div class="detail-block">
+          <button type="button" class="btn btn-secondary" data-action="nearby">${ICONS.compass} Interesses pr\xF3ximos</button>
+        </div>
+      </div>
+
+      <div class="detail-cta">
+        <div class="detail-price">
+          <span class="detail-price-label">Investimento</span>
+          <strong>${apartment.price ? esc2(apartment.price) : "Sob consulta"}</strong>
+        </div>
+        <div class="detail-actions">
+          ${apartment.available ? `<button type="button" class="btn btn-primary btn-lg" data-action="rent">Alugar ${ICONS.arrowRight}</button>` : '<p class="detail-unavailable">Este im\xF3vel n\xE3o est\xE1 dispon\xEDvel no momento. Fale conosco para conhecer outras op\xE7\xF5es.</p>'}
+          <button type="button" class="btn btn-secondary" data-action="reviews">Avaliar ${ICONS.star || ""}</button>
+        </div>
+      </div>
+    </article>`;
+    const modal = openModal(html, { variant: "modal-detail" });
+    const gallery = createGallery(modal.body.querySelector("[data-gallery-mount]"), images, {
+      alt: `Foto do ${apartment.name}`
+    });
+    modal.body.querySelector('[data-action="rent"]')?.addEventListener("click", () => {
+      modal.close();
+      setTimeout(() => openBooking(apartment), 240);
+    });
+    const detailOverlay = modal.sheet.closest(".modal-overlay");
+    modal.body.querySelector('[data-action="reviews"]')?.addEventListener("click", () => {
+      if (detailOverlay) detailOverlay.style.display = "none";
+      openReviewsModal(apartment.id, apartment.name, () => {
+        if (detailOverlay) detailOverlay.style.display = "flex";
+      });
+    });
+    modal.body.querySelector('[data-action="nearby"]')?.addEventListener("click", () => {
+      if (detailOverlay) detailOverlay.style.display = "none";
+      openNearbyModal(apartment, () => {
+        if (detailOverlay) detailOverlay.style.display = "flex";
+      });
+    });
+    const originalClose = modal.close;
+    modal.close = () => {
+      gallery.destroy();
+      originalClose();
+    };
+  }
+
   // assets/js/main.js
   function bindConfig() {
     document.querySelectorAll('[data-bind="brandName"]').forEach((el) => el.textContent = SITE_CONFIG.brandName);
@@ -1534,10 +1640,6 @@ Lembrando que amanh\xE3 cedo ir\xE1 ligar automaticamente, para filtrar a \xE1gu
       if (!response.ok) return;
       const empresa = await response.json();
       if (!empresa || !empresa.id) return;
-      if (empresa.name) {
-        SITE_CONFIG.brandName = empresa.name;
-        document.title = `${empresa.name} \u2014 Apartamentos para temporada em Ubatuba`;
-      }
       const digits = String(empresa.whatsapp ?? "").replace(/\D/g, "");
       if (digits) {
         const local = digits.slice(-11);
