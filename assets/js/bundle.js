@@ -1709,7 +1709,8 @@ Lembrando que amanh\xE3 cedo ir\xE1 ligar automaticamente, para filtrar a \xE1gu
     const toggle = document.getElementById("navToggle");
     const menu = document.getElementById("mobileMenu");
     const onScroll = () => {
-      header.classList.toggle("is-scrolled", window.scrollY > 40);
+      const scrolled = window.scrollY > 110;
+      header.classList.toggle("is-scrolled", scrolled);
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
