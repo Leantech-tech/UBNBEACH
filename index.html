@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="/assets/css/styles.css?v=29" />
+  <link rel="stylesheet" href="/assets/css/styles.css?v=30" />
 </head>
 <body>
 
@@ -222,6 +222,26 @@
             espaço, conforto e praticidade.
           </p>
         </header>
+        <form class="apt-filters" id="aptFilters" aria-label="Filtrar imóveis">
+          <div class="apt-filter-field apt-filter-grow">
+            <label for="aptFilterName">Nome do imóvel</label>
+            <input type="search" id="aptFilterName" placeholder="Buscar por nome..." autocomplete="off" />
+          </div>
+          <div class="apt-filter-field">
+            <label for="aptFilterGuests">Pessoas</label>
+            <select id="aptFilterGuests">
+              <option value="">Todas</option>
+            </select>
+          </div>
+          <div class="apt-filter-field">
+            <label for="aptFilterLocation">Local</label>
+            <select id="aptFilterLocation">
+              <option value="">Todos</option>
+            </select>
+          </div>
+          <button type="reset" class="btn btn-outline apt-filter-reset">Limpar</button>
+        </form>
+
         <div class="apartments-grid" id="apartmentsGrid"><!-- renderizado via JS --></div>
       </div>
     </section>
@@ -284,6 +304,6 @@
 
   <div id="modal-root"></div>
 
-  <script src="/assets/js/bundle.js?v=32" defer></script>
+  <script src="/assets/js/bundle.js?v=33" defer></script>
 </body>
 </html>

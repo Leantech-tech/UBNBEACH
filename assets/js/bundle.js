@@ -1683,18 +1683,20 @@ Lembrando que amanh\xE3 cedo ir\xE1 ligar automaticamente, para filtrar a \xE1gu
       </div>
     </article>`;
   }
-  function renderApartments() {
+  function renderApartments(filtered = null) {
     const grid = document.getElementById("apartmentsGrid");
     if (!grid) return;
     if (!linkedWhatsApp()) {
       grid.innerHTML = '<p class="section-sub">Este site ainda n\xE3o est\xE1 vinculado a uma empresa. Acesse o endere\xE7o com o n\xFAmero de WhatsApp da empresa no final (ex.: site.com/12997353792).</p>';
       return;
     }
-    if (APARTMENTS2.length === 0) {
-      grid.innerHTML = '<p class="section-sub">Nenhum im\xF3vel dispon\xEDvel no momento.</p>';
+    const list = filtered ?? APARTMENTS2;
+    if (list.length === 0) {
+      grid.innerHTML = filtered ? '<p class="section-sub apt-empty">Nenhum im\xF3vel encontrado com esses filtros. Ajuste a busca ou limpe os filtros.</p>' : '<p class="section-sub">Nenhum im\xF3vel dispon\xEDvel no momento.</p>';
       return;
     }
-    grid.innerHTML = APARTMENTS2.map(apartmentCard).join("");
+    grid.innerHTML = list.map(apartmentCard).join("");
+    if (filtered) grid.querySelectorAll(".reveal").forEach((el) => el.classList.add("in"));
     grid.querySelectorAll("img").forEach(guardImage);
     grid.querySelectorAll('[data-action="details"]').forEach((el) => {
       el.addEventListener("click", () => {
@@ -1703,6 +1705,40 @@ Lembrando que amanh\xE3 cedo ir\xE1 ligar automaticamente, para filtrar a \xE1gu
         if (apartment) openApartmentDetail(apartment);
       });
     });
+  }
+  function applyApartmentFilters() {
+    const name = (document.getElementById("aptFilterName")?.value ?? "").trim().toLowerCase();
+    const guests = Number(document.getElementById("aptFilterGuests")?.value || 0);
+    const location = document.getElementById("aptFilterLocation")?.value ?? "";
+    return APARTMENTS2.filter((a) => {
+      if (name && !(a.name ?? "").toLowerCase().includes(name)) return false;
+      if (guests && (a.capacity ?? 0) < guests) return false;
+      if (location && a.location !== location) return false;
+      return true;
+    });
+  }
+  function initApartmentFilters() {
+    const form = document.getElementById("aptFilters");
+    if (!form || !linkedWhatsApp()) return;
+    const guestsEl = document.getElementById("aptFilterGuests");
+    const locationEl = document.getElementById("aptFilterLocation");
+    const capacities = [...new Set(APARTMENTS2.map((a) => a.capacity).filter(Number.isFinite))].sort((x, y) => x - y);
+    capacities.forEach((c) => {
+      const opt = document.createElement("option");
+      opt.value = String(c);
+      opt.textContent = `${c} ou mais`;
+      guestsEl.appendChild(opt);
+    });
+    [...new Set(APARTMENTS2.map((a) => a.location).filter(Boolean))].sort().forEach((loc) => {
+      const opt = document.createElement("option");
+      opt.value = loc;
+      opt.textContent = loc;
+      locationEl.appendChild(opt);
+    });
+    const update = () => renderApartments(applyApartmentFilters());
+    form.addEventListener("input", update);
+    form.addEventListener("change", update);
+    form.addEventListener("reset", () => setTimeout(update));
   }
   function initNavigation() {
     const header = document.getElementById("siteHeader");
@@ -1832,6 +1868,7 @@ Lembrando que amanh\xE3 cedo ir\xE1 ligar automaticamente, para filtrar a \xE1gu
     injectIcons();
     setupPromoMode();
     renderApartments();
+    initApartmentFilters();
     renderPoints();
     initNavigation();
     initReveals();

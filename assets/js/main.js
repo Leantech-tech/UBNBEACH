@@ -142,7 +142,7 @@ function apartmentCard(apartment, index) {
     </article>`;
 }
 
-function renderApartments() {
+function renderApartments(filtered = null) {
   const grid = document.getElementById('apartmentsGrid');
   if (!grid) return;
 
@@ -153,12 +153,21 @@ function renderApartments() {
     return;
   }
 
-  if (APARTMENTS.length === 0) {
-    grid.innerHTML = '<p class="section-sub">Nenhum imóvel disponível no momento.</p>';
+  const list = filtered ?? APARTMENTS;
+
+  if (list.length === 0) {
+    grid.innerHTML = filtered
+      ? '<p class="section-sub apt-empty">Nenhum imóvel encontrado com esses filtros. Ajuste a busca ou limpe os filtros.</p>'
+      : '<p class="section-sub">Nenhum imóvel disponível no momento.</p>';
     return;
   }
 
-  grid.innerHTML = APARTMENTS.map(apartmentCard).join('');
+  grid.innerHTML = list.map(apartmentCard).join('');
+
+  // Re-render por filtro: cards novos não passam pelo observer de reveal,
+  // então entram direto com a animação concluída
+  if (filtered) grid.querySelectorAll('.reveal').forEach((el) => el.classList.add('in'));
+
   grid.querySelectorAll('img').forEach(guardImage);
 
   grid.querySelectorAll('[data-action="details"]').forEach((el) => {
@@ -168,6 +177,54 @@ function renderApartments() {
       if (apartment) openApartmentDetail(apartment);
     });
   });
+}
+
+/* ============================================================
+ *  Filtros da seção de imóveis
+ * ------------------------------------------------------------
+ *  Nome (busca parcial), quantidade de pessoas (capacidade mínima)
+ *  e local. As opções de pessoas e local são montadas a partir
+ *  dos próprios imóveis carregados.
+ * ============================================================ */
+function applyApartmentFilters() {
+  const name = (document.getElementById('aptFilterName')?.value ?? '').trim().toLowerCase();
+  const guests = Number(document.getElementById('aptFilterGuests')?.value || 0);
+  const location = document.getElementById('aptFilterLocation')?.value ?? '';
+
+  return APARTMENTS.filter((a) => {
+    if (name && !(a.name ?? '').toLowerCase().includes(name)) return false;
+    if (guests && (a.capacity ?? 0) < guests) return false;
+    if (location && a.location !== location) return false;
+    return true;
+  });
+}
+
+function initApartmentFilters() {
+  const form = document.getElementById('aptFilters');
+  if (!form || !linkedWhatsApp()) return;
+
+  const guestsEl = document.getElementById('aptFilterGuests');
+  const locationEl = document.getElementById('aptFilterLocation');
+
+  const capacities = [...new Set(APARTMENTS.map((a) => a.capacity).filter(Number.isFinite))].sort((x, y) => x - y);
+  capacities.forEach((c) => {
+    const opt = document.createElement('option');
+    opt.value = String(c);
+    opt.textContent = `${c} ou mais`;
+    guestsEl.appendChild(opt);
+  });
+
+  [...new Set(APARTMENTS.map((a) => a.location).filter(Boolean))].sort().forEach((loc) => {
+    const opt = document.createElement('option');
+    opt.value = loc;
+    opt.textContent = loc;
+    locationEl.appendChild(opt);
+  });
+
+  const update = () => renderApartments(applyApartmentFilters());
+  form.addEventListener('input', update);
+  form.addEventListener('change', update);
+  form.addEventListener('reset', () => setTimeout(update));
 }
 
 /* ============================================================
@@ -341,6 +398,7 @@ function init() {
   injectIcons();
   setupPromoMode();
   renderApartments();
+  initApartmentFilters();
   renderPoints();
   initNavigation();
   initReveals();
