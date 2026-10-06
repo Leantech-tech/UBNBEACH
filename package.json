@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Site do Bem Estar — apartamentos de temporada em Ubatuba.",
   "scripts": {
-    "build": "esbuild assets/js/main.js --bundle --format=iife --outfile=assets/js/bundle.js",
+    "build": "esbuild assets/js/main.js --bundle --format=iife --minify --outfile=assets/js/bundle.js && esbuild assets/css/styles.css --minify --outfile=assets/css/styles.min.css",
     "optimize:images": "node scripts/optimize-images.js"
   },
   "devDependencies": {
