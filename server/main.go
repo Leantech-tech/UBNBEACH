@@ -66,6 +66,9 @@ func main() {
 	mux.HandleFunc("GET /api/status", app.getStatus)
 	mux.HandleFunc("GET /api/imoveis/{id}/avaliacoes", app.listAvaliacoes)
 	mux.HandleFunc("POST /api/imoveis/{id}/avaliacoes", app.createAvaliacao)
+	mux.HandleFunc("GET /api/clientes/lookup", app.lookupCliente)
+	mux.HandleFunc("POST /api/clientes", app.createCliente)
+	mux.HandleFunc("POST /api/reservas", app.createReserva)
 	mux.HandleFunc("GET /debug/pontos", app.debugPontos)
 	mux.Handle("/", staticHandler(cfg.SiteDir))
 

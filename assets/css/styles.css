@@ -2415,6 +2415,52 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .review-empty, .review-error { text-align: center; color: var(--muted); padding: 2rem 0; font-size: 0.95rem; }
 .review-error { color: #c0392b; }
 
+/* ============================================================
+   CADASTRO DO CLIENTE (pré-reserva)
+   ============================================================ */
+.client-form { display: flex; flex-direction: column; }
+.client-form-head { margin-bottom: 1.4rem; text-align: center; }
+.client-form-title { margin: 0 0 0.3rem; font-size: 1.35rem; color: var(--ink); }
+.client-form-sub { margin: 0; color: var(--muted); font-size: 0.9rem; }
+#clientForm { display: flex; flex-direction: column; gap: 1.1rem; }
+#clientForm .form-group { display: flex; flex-direction: column; gap: 0.45rem; }
+#clientForm label { font-size: 0.85rem; font-weight: 600; color: var(--ink-soft); }
+#clientForm label small { font-weight: 400; color: var(--muted); }
+#clientForm input {
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: var(--surface);
+  transition: border-color 0.25s var(--ease), box-shadow 0.25s var(--ease);
+}
+#clientForm input:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(192, 154, 94, 0.18);
+}
+.client-form-status {
+  margin: 0;
+  min-height: 1.1em;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.client-form-status.is-found { color: #1e7d46; font-weight: 600; }
+.client-form-status.is-error { color: #c0392b; font-weight: 600; }
+.client-form-error {
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--radius-s);
+  background: rgba(192, 57, 43, 0.08);
+  border: 1px solid rgba(192, 57, 43, 0.25);
+  color: #c0392b;
+  font-size: 0.85rem;
+}
+.client-form-submit { width: 100%; justify-content: center; margin-top: 0.2rem; }
+.client-form-submit:disabled { opacity: 0.7; cursor: wait; }
+
 @media (max-width: 600px) {
   .review-summary { grid-template-columns: 1fr; gap: 1.2rem; }
   .score-value { font-size: 2.8rem; }

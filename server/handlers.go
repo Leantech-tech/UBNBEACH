@@ -65,7 +65,7 @@ func (a *App) DB() *sql.DB {
 }
 
 // buildID identifica a build para diagnóstico em produção (via /api/status).
-const buildID = "fix-db-atomic 2026-10-02"
+const buildID = "clientes-site 2026-10-07"
 
 // getStatus é um endpoint de diagnóstico: informa se a build é a
 // corrigida e se a conexão com o banco foi estabelecida. Não expõe

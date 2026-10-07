@@ -1,4 +1,5 @@
 import { openModal } from './modal.js';
+import { openClientForm } from './client-form.js';
 import { DateRangePicker } from './calendar.js';
 import {
   ICONS,
@@ -10,7 +11,16 @@ import {
   buildWhatsAppLink,
   buildBookingMessage,
   bookingPrice,
+  linkedWhatsApp,
 } from './utils.js';
+
+/** Data local em formato ISO (YYYY-MM-DD) para a API. */
+const isoDate = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/** Imóvel real vem do banco (UUID); os de exemplo do fallback não são. */
+const isUUID = (s) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(s ?? ''));
 
 /**
  * Fluxo de reserva em 3 etapas:
@@ -24,6 +34,7 @@ export function openBooking(apartment) {
     checkIn: null,
     checkOut: null,
     guests: Math.min(2, apartment.capacity),
+    registered: false,
   };
 
   const html = `
@@ -146,15 +157,89 @@ export function openBooking(apartment) {
           ${priceRows}
           <div><dt>Pessoas</dt><dd>${formatGuests(state.guests)}</dd></div>
         </dl>
-        <a href="${waLink}" target="_blank" rel="noopener" class="btn btn-whatsapp btn-lg bk-wa">
+        <button type="button" class="btn btn-whatsapp btn-lg bk-wa" data-role="wa">
           ${ICONS.whatsapp} Continuar pelo WhatsApp
-        </a>
-        <p class="bk-hint bk-hint-small bk-wa-note">
-          Você será direcionado ao WhatsApp com a mensagem já pronta — é só enviar.
+        </button>
+        <p class="bk-hint bk-hint-small bk-wa-note" data-role="wa-note">
+          ${state.registered
+            ? 'Cadastro confirmado! Clique no botão acima para continuar no WhatsApp.'
+            : 'Para continuar, confirme o cadastro rápido com CPF, nome e WhatsApp.'}
         </p>
       </div>`;
 
+    const waBtn = body.querySelector('[data-role="wa"]');
+    waBtn.addEventListener('click', () => {
+      // Antes do cadastro o botão reabre o popup; depois abre o WhatsApp.
+      if (!state.registered) {
+        openClientFormOnce();
+        return;
+      }
+      window.open(waLink, '_blank', 'noopener');
+    });
+
+    // O cadastro abre sozinho assim que o resumo aparece — antes de o
+    // cliente tocar no botão de WhatsApp.
+    if (!state.registered) openClientFormOnce();
+
     renderFoot();
+  }
+
+  // Abre o popup de cadastro uma vez só (reentrante: voltar e avançar
+  // entre etapas não deve empilhar popups). Após o cadastro, grava a
+  // pré-reserva e libera o botão de WhatsApp.
+  function openClientFormOnce() {
+    if (document.querySelector('.client-form')) return;
+    openClientForm({
+      onDone: (cliente) => {
+        state.registered = true;
+        salvarPreReserva(cliente);
+        const note = body.querySelector('[data-role="wa-note"]');
+        if (note) {
+          note.textContent = 'Cadastro confirmado! Clique no botão acima para continuar no WhatsApp.';
+        }
+      },
+    });
+  }
+
+  /* ---------------- Pré-reserva no banco ----------------
+   *  Salva a reserva na tabela compartilhada com o app (CRUD
+   *  Reservas), com status PRE RESERVA. Só é possível quando o
+   *  cadastro do cliente retornou id e o imóvel é um registro real
+   *  do banco (UUID); no modo de exemplo a reserva não é gravada.
+   *  Falha silenciosa: nunca bloqueia o caminho para o WhatsApp.
+   */
+  async function salvarPreReserva(cliente) {
+    if (!cliente?.id || !isUUID(apartment.id)) return;
+
+    const nights = nightsBetween(state.checkIn, state.checkOut);
+    const price = bookingPrice(apartment, nights);
+
+    const obsParts = [
+      'Pré-reserva feita pelo site.',
+      `${formatGuests(state.guests)} · ${plural(nights, 'diária', 'diárias')}.`,
+    ];
+    if (price) obsParts.push(`Total estimado: ${formatBRL(price.total)}.`);
+
+    try {
+      await fetch('/api/reservas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imovelId: apartment.id,
+          clienteId: cliente.id,
+          empresa: linkedWhatsApp(),
+          entrada: isoDate(state.checkIn),
+          saida: isoDate(state.checkOut),
+          hospedes: state.guests,
+          valorDiaria: price?.daily ?? 0,
+          taxaLimpeza: price?.cleaning ?? 0,
+          valorTotal: price?.total ?? 0,
+          observacoes: obsParts.join(' '),
+        }),
+      });
+    } catch {
+      // API fora do ar: segue para o WhatsApp mesmo assim.
+    }
   }
 
   /* ---------------- Rodapé / navegação ---------------- */
