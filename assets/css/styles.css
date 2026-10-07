@@ -1553,6 +1553,13 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   color: var(--muted);
   max-width: 44ch;
 }
+.promo-video {
+  width: 100%;
+  margin-top: 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: #000;
+}
 .promo-site {
   color: var(--accent);
   text-decoration: none;

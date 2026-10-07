@@ -30,7 +30,7 @@ const doc = window.document;
   const sections = [...doc.querySelectorAll('main section')].map((s) => s.id || '(cta)');
   check(
     'ordem das seções',
-    sections.join(',') === 'inicio,leantechPromo,como-funciona,pontos-interesse,apartamentos,(cta)',
+    sections.join(',') === 'inicio,leantechPromo,como-funciona,apartamentos,pontos-interesse,(cta)',
     sections.join(' > ')
   );
 
