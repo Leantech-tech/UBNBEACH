@@ -69,6 +69,7 @@ func main() {
 	mux.HandleFunc("GET /api/clientes/lookup", app.lookupCliente)
 	mux.HandleFunc("POST /api/clientes", app.createCliente)
 	mux.HandleFunc("POST /api/reservas", app.createReserva)
+	mux.HandleFunc("POST /api/reservas/cancelar", app.cancelReserva)
 	mux.HandleFunc("GET /debug/pontos", app.debugPontos)
 	mux.Handle("/", staticHandler(cfg.SiteDir))
 

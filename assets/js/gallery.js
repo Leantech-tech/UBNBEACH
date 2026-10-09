@@ -69,7 +69,6 @@ export function createGallery(mount, images, { alt = 'Foto', ratio } = {}) {
   if (ratio) mount.querySelector('.gallery-main').style.aspectRatio = String(ratio);
 
   let index = 0;
-  let switching = false;
 
   const apply = (i) => {
     index = (i + list.length) % list.length;
@@ -78,27 +77,13 @@ export function createGallery(mount, images, { alt = 'Foto', ratio } = {}) {
     thumbs.forEach((t, ti) => t.classList.toggle('is-active', ti === index));
   };
 
+  // Troca imediata: as fotos já foram precarregadas no mount, então o
+  // navegador as tem em cache e a troca acontece no mesmo clique.
   const show = (i) => {
-    if (!multiple || switching) return;
+    if (!multiple) return;
     const targetIndex = (i + list.length) % list.length;
     if (targetIndex === index) return;
-
-    switching = true;
-    const targetSrc = list[targetIndex];
-
-    const preload = new Image();
-    const done = () => {
-      apply(targetIndex);
-      switching = false;
-    };
-
-    preload.onload = done;
-    preload.onerror = done;
-    preload.src = targetSrc;
-
-    if (preload.complete) {
-      done();
-    }
+    apply(targetIndex);
   };
 
   mainImg.src = list[0];

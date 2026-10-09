@@ -1,6 +1,7 @@
 import { openModal } from './modal.js';
 import { openClientForm } from './client-form.js';
 import { DateRangePicker } from './calendar.js';
+import { showToast } from './toast.js';
 import {
   ICONS,
   formatDate,
@@ -56,6 +57,7 @@ export function openBooking(apartment) {
   const foot = modal.body.querySelector('[data-role="foot"]');
 
   let picker = null;
+  let reservaId = null; // id da pré-reserva gravada (para poder cancelar)
 
   /* ---------------- Etapa 1: período ---------------- */
   function renderStep1() {
@@ -157,24 +159,52 @@ export function openBooking(apartment) {
           ${priceRows}
           <div><dt>Pessoas</dt><dd>${formatGuests(state.guests)}</dd></div>
         </dl>
-        <button type="button" class="btn btn-whatsapp btn-lg bk-wa" data-role="wa">
-          ${ICONS.whatsapp} Continuar pelo WhatsApp
+        <button type="button" class="btn btn-primary btn-lg bk-wa" data-role="wa">
+          ${ICONS.whatsapp} Finalizar reserva
         </button>
+        <button type="button" class="btn btn-text bk-cancel" data-role="cancel">Cancelar reserva</button>
         <p class="bk-hint bk-hint-small bk-wa-note" data-role="wa-note">
           ${state.registered
-            ? 'Cadastro confirmado! Clique no botão acima para continuar no WhatsApp.'
+            ? 'Cadastro confirmado! Clique em "Finalizar reserva" para concluir.'
             : 'Para continuar, confirme o cadastro rápido com CPF, nome e WhatsApp.'}
         </p>
       </div>`;
 
     const waBtn = body.querySelector('[data-role="wa"]');
     waBtn.addEventListener('click', () => {
-      // Antes do cadastro o botão reabre o popup; depois abre o WhatsApp.
+      // Antes do cadastro o botão reabre o popup; depois avisa o
+      // cliente e abre o WhatsApp do proprietário.
       if (!state.registered) {
         openClientFormOnce();
         return;
       }
-      window.open(waLink, '_blank', 'noopener');
+      showToast(
+        'Sua pré reserva foi realizada com sucesso! Agora vou enviar para o WhatsApp do proprietário(a) do imóvel',
+        { duration: 2600 }
+      );
+      // Pequena pausa para a mensagem aparecer antes do redirecionamento.
+      setTimeout(() => {
+        const win = window.open(waLink, '_blank');
+        if (!win) window.location.href = waLink; // bloqueador de popup: abre na mesma aba
+      }, 1400);
+    });
+
+    // Cancelar: anula a pré-reserva no banco (quando já gravada), fecha
+    // o fluxo e confirma na tela.
+    body.querySelector('[data-role="cancel"]')?.addEventListener('click', async () => {
+      if (reservaId) {
+        try {
+          await fetch('/api/reservas/cancelar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: reservaId, empresa: linkedWhatsApp() }),
+          });
+        } catch {
+          // API fora do ar: o cancelamento local segue mesmo assim.
+        }
+      }
+      modal.close();
+      showToast('Sua reserva foi cancelada!');
     });
 
     // O cadastro abre sozinho assim que o resumo aparece — antes de o
@@ -195,7 +225,7 @@ export function openBooking(apartment) {
         salvarPreReserva(cliente);
         const note = body.querySelector('[data-role="wa-note"]');
         if (note) {
-          note.textContent = 'Cadastro confirmado! Clique no botão acima para continuar no WhatsApp.';
+          note.textContent = 'Cadastro confirmado! Clique em "Finalizar reserva" para concluir.';
         }
       },
     });
@@ -221,7 +251,7 @@ export function openBooking(apartment) {
     if (price) obsParts.push(`Total estimado: ${formatBRL(price.total)}.`);
 
     try {
-      await fetch('/api/reservas', {
+      const res = await fetch('/api/reservas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -237,6 +267,8 @@ export function openBooking(apartment) {
           observacoes: obsParts.join(' '),
         }),
       });
+      const data = await res.json().catch(() => null);
+      reservaId = data?.id ?? null;
     } catch {
       // API fora do ar: segue para o WhatsApp mesmo assim.
     }

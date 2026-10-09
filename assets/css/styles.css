@@ -1387,6 +1387,7 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   gap: 1.2rem;
   flex-wrap: wrap;
 }
+.detail-actions { display: flex; flex-direction: column; gap: 0.8rem; }
 .detail-price-label {
   display: block;
   font-size: 0.74rem;
@@ -1470,6 +1471,8 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   border-top: 1px solid var(--line);
 }
 .bk-wa { width: 100%; }
+.bk-cancel { width: 100%; justify-content: center; margin-top: 0.2rem; color: var(--muted); }
+.bk-cancel:hover { color: var(--ink); }
 .bk-wa-note { text-align: center; }
 
 .bk-summary {
@@ -2420,7 +2423,7 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
    CADASTRO DO CLIENTE (pré-reserva)
    ============================================================ */
 .client-form { display: flex; flex-direction: column; }
-.client-form-head { margin-bottom: 1.4rem; text-align: center; }
+.client-form-head { margin-bottom: 1.4rem; padding: 0 2.8rem; text-align: center; }
 .client-form-title { margin: 0 0 0.3rem; font-size: 1.35rem; color: var(--ink); }
 .client-form-sub { margin: 0; color: var(--muted); font-size: 0.9rem; }
 #clientForm { display: flex; flex-direction: column; gap: 1.1rem; }
@@ -2468,3 +2471,33 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   .reviews-form-section { padding: 1.2rem; }
   .stars svg { width: 2rem; height: 2rem; }
 }
+
+/* ============================================================
+   TOAST — mensagem flutuante na parte inferior da tela
+   ============================================================ */
+.toast-wrap {
+  position: fixed;
+  left: 50%;
+  bottom: 1.4rem;
+  transform: translateX(-50%);
+  z-index: 400;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(92vw, 420px);
+  pointer-events: none;
+}
+.toast {
+  background: var(--ink);
+  color: #fff;
+  padding: 0.9rem 1.2rem;
+  border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+  text-align: center;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.3s var(--ease), transform 0.3s var(--ease);
+}
+.toast.is-show { opacity: 1; transform: translateY(0); }

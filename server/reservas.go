@@ -15,6 +15,9 @@ import (
 // "Pré Reserva").
 const statusPreReserva = "PRE_RESERVA"
 
+// statusCancelada é o status gravado ao cancelar uma pré-reserva pelo site.
+const statusCancelada = "CANCELADA"
+
 // ReservaInput é o payload do site para criar uma pré-reserva.
 type ReservaInput struct {
 	ImovelID      string  `json:"imovelId"`
@@ -152,6 +155,53 @@ func (a *App) createReserva(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, map[string]string{"id": id, "status": statusPreReserva})
+}
+
+// ReservaCancelInput é o payload para cancelar uma pré-reserva feita pelo site.
+type ReservaCancelInput struct {
+	ID              string `json:"id"`
+	EmpresaWhatsApp string `json:"empresa"`
+}
+
+// cancelReserva marca uma pré-reserva do site como CANCELADA na tabela
+// compartilhada com o app (CRUD Reservas). Só cancela reservas da
+// empresa informada.
+func (a *App) cancelReserva(w http.ResponseWriter, r *http.Request) {
+	if a.DB() == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "banco de dados indisponível"})
+		return
+	}
+
+	var input ReservaCancelInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "corpo inválido"})
+		return
+	}
+	if !isUUID(input.ID) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "reserva inválida"})
+		return
+	}
+
+	empresaID, ok := a.resolveEmpresa(r, input.EmpresaWhatsApp)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "empresa não encontrada"})
+		return
+	}
+
+	res, err := a.DB().ExecContext(r.Context(), `
+		UPDATE reservas SET status = $3, alterado_em = NOW()
+		WHERE id = $1::uuid AND empresa_id = $2::uuid`,
+		input.ID, empresaID, statusCancelada)
+	if err != nil {
+		respondError(w, err)
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "reserva não encontrada"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": statusCancelada})
 }
 
 // mergeTime combina uma data com um horário "HH:MM" (ou "HH:MM:SS"),

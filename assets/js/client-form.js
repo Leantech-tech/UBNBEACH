@@ -122,6 +122,13 @@ export function openClientForm({ onDone } = {}) {
 
   /* ---------- busca automática por CPF ---------- */
   function scheduleLookup() {
+    // CPF mudou/apagado após um preenchimento automático: limpa os
+    // campos para não ficar dados de outra pessoa na tela.
+    if (foundCliente) {
+      nomeInput.value = '';
+      waInput.value = '';
+      emailInput.value = '';
+    }
     foundCliente = null;
     statusEl.textContent = '';
     statusEl.classList.remove('is-found', 'is-error');
