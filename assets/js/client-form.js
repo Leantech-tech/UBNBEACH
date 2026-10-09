@@ -229,8 +229,10 @@ export function openClientForm({ onDone } = {}) {
       }
       if (!res.ok) throw new Error('api indisponível');
       // Dados do cliente (id) vão para o onDone: quem chama pode
-      // vincular a pré-reserva a esse cadastro.
+      // vincular a pré-reserva a esse cadastro. O nome entra aqui porque
+      // a resposta da API só traz o id.
       clienteData = await res.json().catch(() => null);
+      if (clienteData) clienteData.nome = nomeInput.value.trim();
     } catch {
       // API fora do ar: não travar a reserva — segue para o WhatsApp.
     }
