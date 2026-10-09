@@ -182,7 +182,7 @@ export function buildWhatsAppLink(message) {
 }
 
 /** Mensagem contextualizada do fluxo de reserva. */
-export function buildBookingMessage(apartment, checkIn, checkOut, guests) {
+export function buildBookingMessage(apartment, checkIn, checkOut, guests, clientName) {
   const nights = nightsBetween(checkIn, checkOut);
   const lines = [
     `Olá! Fiz a pré reserva, pelo site, do ${apartment.name}.`,
@@ -191,6 +191,7 @@ export function buildBookingMessage(apartment, checkIn, checkOut, guests) {
     `🌙 Diárias: ${plural(nights, 'diária', 'diárias')}`,
     `👥 Hóspedes: ${plural(guests, 'pessoa', 'pessoas')}`,
   ];
+  if (clientName) lines.push(`🙋 Cliente: ${clientName}`);
   const price = bookingPrice(apartment, nights);
   if (price) {
     lines.push(`💵 Valor da diária: ${formatBRL(price.daily)}`);

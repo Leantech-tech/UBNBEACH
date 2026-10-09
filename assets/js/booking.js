@@ -58,6 +58,7 @@ export function openBooking(apartment) {
 
   let picker = null;
   let reservaId = null; // id da pré-reserva gravada (para poder cancelar)
+  let clientName = null; // nome do cliente após o cadastro
 
   /* ---------------- Etapa 1: período ---------------- */
   function renderStep1() {
@@ -133,7 +134,6 @@ export function openBooking(apartment) {
   /* ---------------- Etapa 3: resumo ---------------- */
   function renderStep3() {
     const nights = nightsBetween(state.checkIn, state.checkOut);
-    const waLink = buildWhatsAppLink(buildBookingMessage(apartment, state.checkIn, state.checkOut, state.guests));
 
     // Valores: diária × noites, somando a taxa de limpeza quando houver.
     // Sem diária cadastrada, os campos aparecem como "Sob consulta".
@@ -184,8 +184,11 @@ export function openBooking(apartment) {
       );
       // Pequena pausa para a mensagem aparecer antes do redirecionamento.
       setTimeout(() => {
-        const win = window.open(waLink, '_blank');
-        if (!win) window.location.href = waLink; // bloqueador de popup: abre na mesma aba
+        const link = buildWhatsAppLink(
+          buildBookingMessage(apartment, state.checkIn, state.checkOut, state.guests, clientName)
+        );
+        const win = window.open(link, '_blank');
+        if (!win) window.location.href = link; // bloqueador de popup: abre na mesma aba
       }, 1400);
     });
 
@@ -222,6 +225,7 @@ export function openBooking(apartment) {
     openClientForm({
       onDone: (cliente) => {
         state.registered = true;
+        clientName = cliente?.nome?.trim() || null;
         salvarPreReserva(cliente);
         const note = body.querySelector('[data-role="wa-note"]');
         if (note) {
