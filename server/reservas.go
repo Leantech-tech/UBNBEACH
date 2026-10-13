@@ -122,6 +122,29 @@ func (a *App) createReserva(w http.ResponseWriter, r *http.Request) {
 	entradaTS := mergeTime(entrada, checkin.String, "14:00")
 	saidaTS := mergeTime(saida, checkout.String, "11:00")
 
+	// Período livre? ORCAMENTO, FINALIZADA e CANCELADA não ocupam o imóvel.
+	var conflitoID string
+	err = a.DB().QueryRowContext(r.Context(), `
+		SELECT id FROM reservas
+		WHERE empresa_id = $1::uuid
+		  AND imovel_id = $2::uuid
+		  AND status IN ('PRE_RESERVA', 'CONFIRMADA', 'HOSPEDADO', 'BLOQUEIO')
+		  AND entrada < $4::timestamp
+		  AND saida > $3::timestamp
+		LIMIT 1`,
+		empresaID, input.ImovelID, entradaTS, saidaTS).Scan(&conflitoID)
+	if err != nil && err != sql.ErrNoRows {
+		respondError(w, err)
+		return
+	}
+	if conflitoID != "" {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error":    "Esse período desejado já está reservado!",
+			"conflict": true,
+		})
+		return
+	}
+
 	// Valores: os enviados pelo site (o que o cliente viu no resumo);
 	// sem preço cadastrado, caem para os valores do imóvel/0.
 	diaria := input.ValorDiaria

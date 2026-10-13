@@ -59,6 +59,8 @@ export function openBooking(apartment) {
   let picker = null;
   let reservaId = null; // id da pré-reserva gravada (para poder cancelar)
   let clientName = null; // nome do cliente após o cadastro
+  let clienteSalvo = null; // ficha do cliente para regravar a pré-reserva em novas datas
+  let periodoRecusado = false; // true quando o servidor recusou o período (409)
 
   /* ---------------- Etapa 1: período ---------------- */
   function renderStep1() {
@@ -178,6 +180,13 @@ export function openBooking(apartment) {
         openClientFormOnce();
         return;
       }
+      // Sem pré-reserva gravada por recusa do período não é possível
+      // finalizar — orienta o cliente a escolher outra data. Outras
+      // falhas (API fora do ar) mantêm o caminho para o WhatsApp.
+      if (!reservaId && periodoRecusado) {
+        showToast('Esse período desejado já está reservado! Escolha outra data.', { duration: 4000 });
+        return;
+      }
       showToast(
         'Sua pré reserva foi realizada com sucesso! Agora vou enviar para o WhatsApp do proprietário(a) do imóvel',
         { duration: 2600 }
@@ -212,7 +221,12 @@ export function openBooking(apartment) {
 
     // O cadastro abre sozinho assim que o resumo aparece — antes de o
     // cliente tocar no botão de WhatsApp.
-    if (!state.registered) openClientFormOnce();
+    if (!state.registered) {
+      openClientFormOnce();
+    } else if (clienteSalvo && !reservaId) {
+      // Datas novas após um período recusado: tenta gravar de novo.
+      salvarPreReserva(clienteSalvo);
+    }
 
     renderFoot();
   }
@@ -225,6 +239,7 @@ export function openBooking(apartment) {
     openClientForm({
       onDone: (cliente) => {
         state.registered = true;
+        clienteSalvo = cliente;
         clientName = cliente?.nome?.trim() || null;
         salvarPreReserva(cliente);
         const note = body.querySelector('[data-role="wa-note"]');
@@ -240,7 +255,9 @@ export function openBooking(apartment) {
    *  Reservas), com status PRE RESERVA. Só é possível quando o
    *  cadastro do cliente retornou id e o imóvel é um registro real
    *  do banco (UUID); no modo de exemplo a reserva não é gravada.
-   *  Falha silenciosa: nunca bloqueia o caminho para o WhatsApp.
+   *  Quando o período já está reservado, o servidor responde 409: a
+   *  tela avisa o cliente e volta para a etapa de datas, mantendo o
+   *  cadastro para não pedir os dados de novo.
    */
   async function salvarPreReserva(cliente) {
     if (!cliente?.id || !isUUID(apartment.id)) return;
@@ -272,10 +289,32 @@ export function openBooking(apartment) {
         }),
       });
       const data = await res.json().catch(() => null);
+      if (res.status === 409 || data?.conflict) {
+        // Período já reservado: limpa as datas, avisa e devolve o
+        // cliente para a etapa 1 escolher outro período.
+        reservaId = null;
+        periodoRecusado = true;
+        state.checkIn = null;
+        state.checkOut = null;
+        showToast('Esse período desejado já está reservado!', { duration: 4000 });
+        goBackToDates();
+        return;
+      }
       reservaId = data?.id ?? null;
+      periodoRecusado = false;
     } catch {
       // API fora do ar: segue para o WhatsApp mesmo assim.
     }
+  }
+
+  // Volta para a etapa de seleção de período (mantém cadastro e pessoas).
+  function goBackToDates() {
+    picker?.destroy();
+    picker = null;
+    state.step = 1;
+    updateDots();
+    renderStep1();
+    modal.sheet.scrollTop = 0;
   }
 
   /* ---------------- Rodapé / navegação ---------------- */
