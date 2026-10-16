@@ -2,6 +2,7 @@ import { openModal } from './modal.js';
 import { openClientForm } from './client-form.js';
 import { DateRangePicker } from './calendar.js';
 import { showToast } from './toast.js';
+import { SITE_CONFIG } from './config.js';
 import {
   ICONS,
   formatDate,
@@ -13,6 +14,7 @@ import {
   buildBookingMessage,
   bookingPrice,
   linkedWhatsApp,
+  normalizeWhatsAppNumber,
 } from './utils.js';
 
 /** Data local em formato ISO (YYYY-MM-DD) para a API. */
@@ -30,6 +32,13 @@ const isUUID = (s) =>
  *   3. Resumo + redirecionamento para o WhatsApp
  */
 export function openBooking(apartment) {
+  // A reserva sempre pertence à empresa do imóvel — tanto no modo
+  // empresa (URL com /<whatsapp>) quanto no catálogo (raiz do site,
+  // com imóveis de várias empresas). O WhatsApp final e a pré-reserva
+  // vão para essa empresa, nunca para um número geral do site.
+  const empresaDigits = String(apartment.empresaWhatsapp ?? '').replace(/\D/g, '');
+  const ownerNumber = normalizeWhatsAppNumber(apartment.empresaWhatsapp) || SITE_CONFIG.whatsappNumber;
+
   const state = {
     step: 1,
     checkIn: null,
@@ -194,7 +203,8 @@ export function openBooking(apartment) {
       // Pequena pausa para a mensagem aparecer antes do redirecionamento.
       setTimeout(() => {
         const link = buildWhatsAppLink(
-          buildBookingMessage(apartment, state.checkIn, state.checkOut, state.guests, clientName)
+          buildBookingMessage(apartment, state.checkIn, state.checkOut, state.guests, clientName),
+          ownerNumber
         );
         const win = window.open(link, '_blank');
         if (!win) window.location.href = link; // bloqueador de popup: abre na mesma aba
@@ -209,7 +219,7 @@ export function openBooking(apartment) {
           await fetch('/api/reservas/cancelar', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: reservaId, empresa: linkedWhatsApp() }),
+            body: JSON.stringify({ id: reservaId, empresa: linkedWhatsApp() || empresaDigits || null }),
           });
         } catch {
           // API fora do ar: o cancelamento local segue mesmo assim.
@@ -233,10 +243,12 @@ export function openBooking(apartment) {
 
   // Abre o popup de cadastro uma vez só (reentrante: voltar e avançar
   // entre etapas não deve empilhar popups). Após o cadastro, grava a
-  // pré-reserva e libera o botão de WhatsApp.
+  // pré-reserva e libera o botão de WhatsApp. O cadastro/lookup vão
+  // para a empresa do imóvel (no catálogo não há empresa na URL).
   function openClientFormOnce() {
     if (document.querySelector('.client-form')) return;
     openClientForm({
+      empresa: linkedWhatsApp() || empresaDigits || null,
       onDone: (cliente) => {
         state.registered = true;
         clienteSalvo = cliente;
@@ -278,7 +290,7 @@ export function openBooking(apartment) {
         body: JSON.stringify({
           imovelId: apartment.id,
           clienteId: cliente.id,
-          empresa: linkedWhatsApp(),
+          empresa: linkedWhatsApp() || empresaDigits || null,
           entrada: isoDate(state.checkIn),
           saida: isoDate(state.checkOut),
           hospedes: state.guests,

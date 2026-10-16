@@ -53,9 +53,12 @@ export function cpfValido(digits) {
  *  nome do site, definida no servidor) e chama onDone() para o
  *  site seguir para o WhatsApp.
  *
- *  @param {{ onDone?: () => void }} opts
+ *  @param {{ onDone?: () => void, empresa?: string|null }} opts
+ *  empresa: WhatsApp (somente dígitos) da empresa da reserva; quando
+ *  omitido, usa o vínculo da URL (modo empresa).
  */
-export function openClientForm({ onDone } = {}) {
+export function openClientForm({ onDone, empresa } = {}) {
+  const empresaKey = empresa || linkedWhatsApp(); // empresa dona da reserva (URL ou imóvel)
   const html = `
     <div class="client-form">
       <header class="client-form-head">
@@ -146,12 +149,11 @@ export function openClientForm({ onDone } = {}) {
   async function lookupByCPF() {
     const seq = ++lookupSeq;
     const cpf = cpfInput.value.replace(/\D/g, '');
-    const empresa = linkedWhatsApp();
-    if (cpf.length !== 11 || !empresa || typeof fetch === 'undefined') return;
+    if (cpf.length !== 11 || !empresaKey || typeof fetch === 'undefined') return;
 
     statusEl.textContent = 'Buscando cadastro...';
     try {
-      const res = await fetch(`${API_LOOKUP_URL}?cpf=${cpf}&whatsapp=${empresa}`);
+      const res = await fetch(`${API_LOOKUP_URL}?cpf=${cpf}&whatsapp=${empresaKey}`);
       if (seq !== lookupSeq) return; // CPF mudou enquanto buscava
       if (res.status === 404) {
         statusEl.textContent = 'Primeira vez por aqui? Complete os campos abaixo.';
@@ -216,7 +218,7 @@ export function openClientForm({ onDone } = {}) {
           nome: nomeInput.value.trim(),
           whatsapp: waInput.value,
           email: emailInput.value.trim(),
-          empresa: linkedWhatsApp(),
+          empresa: empresaKey,
         }),
       });
 

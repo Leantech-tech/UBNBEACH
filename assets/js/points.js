@@ -1,16 +1,17 @@
 import { openPointModal } from './point-modal.js';
 import { FALLBACK_CATEGORIES, FALLBACK_POINTS } from './points-fallback.js';
-import { ICONS, categoryIcon, guardImage, linkedWhatsApp, placeholderImage } from './utils.js';
+import { ICONS, categoryIcon, guardImage, isPromoRoute, linkedWhatsApp, placeholderImage } from './utils.js';
 
 /**
  * ============================================================
  *  PONTOS DE INTERESSE — seção única com filtro por categoria
  * ------------------------------------------------------------
- *  Os dados vêm da API do backend Go (/api/pontos-interesse),
- *  lidos do banco e filtrados pela empresa vinculada na URL
- *  (site.com/<whatsapp-da-empresa>). Sem vínculo, a seção avisa
- *  que o site não está vinculado; com vínculo e API fora do ar,
- *  cai para os dados locais de exemplo (points-fallback.js).
+ *  Os dados vêm da API do backend Go (/api/pontos-interesse), lidos
+ *  do banco. Com /<whatsapp-da-empresa> na URL, mostra só os pontos
+ *  daquela empresa; sem vínculo (raiz do site), o catálogo público
+ *  de todas as empresas. Na rota /detalhes nada é carregado; com
+ *  vínculo e API fora do ar, cai para os dados locais de exemplo
+ *  (points-fallback.js).
  *
  *  O menu de chips filtra os pontos por categoria; cada card
  *  abre um modal com foto, descrição organizada em blocos e a
@@ -23,13 +24,13 @@ const API_PONTOS_URL = '/api/pontos-interesse';
 let categories = FALLBACK_CATEGORIES;
 let points = FALLBACK_POINTS;
 
-/** Carrega os pontos da empresa vinculada; mantém o fallback se a API falhar. */
+/** Carrega os pontos (da empresa vinculada ou catálogo público); mantém o fallback se a API falhar. */
 export async function loadPoints() {
-  const whatsapp = linkedWhatsApp();
-  if (!whatsapp || typeof fetch === 'undefined') return; // sem vínculo ou jsdom
+  if (isPromoRoute() || typeof fetch === 'undefined') return; // propaganda ou jsdom
 
+  const whatsapp = linkedWhatsApp();
   try {
-    const response = await fetch(`${API_PONTOS_URL}?whatsapp=${whatsapp}`);
+    const response = await fetch(whatsapp ? `${API_PONTOS_URL}?whatsapp=${whatsapp}` : API_PONTOS_URL);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     if (!data || !Array.isArray(data.categories) || !Array.isArray(data.points)) {
@@ -81,14 +82,7 @@ function pointCard(point) {
 
 export function renderPoints() {
   const mount = document.getElementById('pointsMount');
-  if (!mount) return;
-
-  if (!linkedWhatsApp()) {
-    mount.innerHTML =
-      '<p class="section-sub">Este site ainda não está vinculado a uma empresa. ' +
-      'Acesse o endereço com o número de WhatsApp da empresa no final (ex.: site.com/12997353792).</p>';
-    return;
-  }
+  if (!mount || isPromoRoute()) return;
 
   if (points.length === 0) {
     mount.innerHTML = '<p class="section-sub">Nenhum ponto de interesse cadastrado no momento.</p>';

@@ -49,6 +49,8 @@ type ImovelDTO struct {
 	SmokingAllowed bool     `json:"smokingAllowed"`
 	HouseRules     string   `json:"houseRules"`
 	GuestInfo      string   `json:"guestInstructions"`
+	EmpresaNome    string   `json:"empresaNome"`
+	EmpresaWhats   string   `json:"empresaWhatsapp"`
 }
 
 // App guarda a conexão com o banco em um ponteiro atômico: a conexão
@@ -119,7 +121,8 @@ type PontosInteresseResponse struct {
 
 // listPontosInteresse retorna as categorias ativas e os pontos de
 // interesse ativos e publicados da empresa vinculada via WhatsApp
-// (?whatsapp=...). Sem vínculo válido, retorna listas vazias.
+// (?whatsapp=...). Sem ?whatsapp= (ou sem correspondência), agrega as
+// categorias e pontos de todas as empresas (catálogo público).
 func (a *App) listPontosInteresse(w http.ResponseWriter, r *http.Request) {
 	if a.DB() == nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "banco de dados indisponível"})
@@ -131,16 +134,12 @@ func (a *App) listPontosInteresse(w http.ResponseWriter, r *http.Request) {
 		Points:     []PontoInteresseDTO{},
 	}
 
-	empresaID, ok := a.resolveEmpresa(r, r.URL.Query().Get("whatsapp"))
-	if !ok {
-		writeJSON(w, http.StatusOK, out)
-		return
-	}
+	empresaID, _ := a.resolveEmpresa(r, r.URL.Query().Get("whatsapp"))
 
 	catRows, err := a.DB().QueryContext(r.Context(), `
 		SELECT id, coalesce(nome, ''), coalesce(slug, ''), coalesce(icone, ''), coalesce(ordem, 999)
 		FROM categorias_ponto_interesse
-		WHERE empresa_id = $1::uuid AND ativo
+		WHERE ($1 = '' OR empresa_id = $1::uuid) AND ativo
 		ORDER BY ordem, nome`, empresaID)
 	if err != nil {
 		respondError(w, err)
@@ -171,7 +170,7 @@ func (a *App) listPontosInteresse(w http.ResponseWriter, r *http.Request) {
 		       p.destaque, p.categoria_id
 		FROM pontos_interesse p
 		JOIN categorias_ponto_interesse c ON c.id = p.categoria_id AND c.ativo
-		WHERE p.empresa_id = $1::uuid
+		WHERE ($1 = '' OR p.empresa_id = $1::uuid)
 		  AND p.ativo AND p.publicado
 		ORDER BY p.destaque DESC, p.nome`, empresaID)
 	if err != nil {
@@ -260,17 +259,16 @@ func (a *App) getEmpresa(w http.ResponseWriter, r *http.Request) {
 }
 
 // listImoveis retorna os imóveis ativos da empresa vinculada via
-// WhatsApp (?whatsapp=...). Sem vínculo válido, retorna lista vazia.
+// WhatsApp (?whatsapp=...). Sem ?whatsapp= (ou sem correspondência),
+// retorna o catálogo público: imóveis ativos de todas as empresas,
+// cada um com os dados da empresa proprietária (empresaNome e
+// empresaWhatsapp) para o frontend direcionar a reserva.
 func (a *App) listImoveis(w http.ResponseWriter, r *http.Request) {
 	if a.DB() == nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "banco de dados indisponível"})
 		return
 	}
-	empresaID, ok := a.resolveEmpresa(r, r.URL.Query().Get("whatsapp"))
-	if !ok {
-		writeJSON(w, http.StatusOK, []ImovelDTO{})
-		return
-	}
+	empresaID, _ := a.resolveEmpresa(r, r.URL.Query().Get("whatsapp"))
 
 	imoveis, err := a.fetchImoveis(r, "", empresaID)
 	if err != nil {
@@ -311,20 +309,23 @@ func (a *App) getImovel(w http.ResponseWriter, r *http.Request) {
 }
 
 const imoveisQuery = `
-	SELECT id, codigo, titulo, tipo, bairro, cidade,
-	       endereco, numero, complemento, uf, cep, ocultar_endereco, ponto_referencia,
-	       capacidade, quartos, suites, banheiros,
-	       camas_casal, camas_solteiro, beliches, sofas_cama, vagas,
-	       descricao_curta, descricao_completa,
-	       valor_diaria, valor_diaria_fim_semana, taxa_limpeza, caucao, observacao_valores,
-	       checkin_padrao::text, checkout_padrao::text, estadia_minima,
-	       aceita_animais, permite_eventos, permite_fumar,
-	       regras_adicionais, instrucoes_hospede
-	FROM imoveis
-	WHERE status = 'ATIVO'
-	  AND ($1 = '' OR id = $1::uuid)
-	  AND empresa_id = $2::uuid
-	ORDER BY codigo`
+	SELECT i.id, i.codigo, i.titulo, i.tipo, i.bairro, i.cidade,
+	       i.endereco, i.numero, i.complemento, i.uf, i.cep, i.ocultar_endereco, i.ponto_referencia,
+	       i.capacidade, i.quartos, i.suites, i.banheiros,
+	       i.camas_casal, i.camas_solteiro, i.beliches, i.sofas_cama, i.vagas,
+	       i.descricao_curta, i.descricao_completa,
+	       i.valor_diaria, i.valor_diaria_fim_semana, i.taxa_limpeza, i.caucao, i.observacao_valores,
+	       i.checkin_padrao::text, i.checkout_padrao::text, i.estadia_minima,
+	       i.aceita_animais, i.permite_eventos, i.permite_fumar,
+	       i.regras_adicionais, i.instrucoes_hospede,
+	       coalesce(nullif(e.nome_fantasia, ''), e.razao_social, ''),
+	       coalesce(e.whatsapp, '')
+	FROM imoveis i
+	JOIN empresas e ON e.id = i.empresa_id
+	WHERE i.status = 'ATIVO'
+	  AND ($1 = '' OR i.id = $1::uuid)
+	  AND ($2 = '' OR i.empresa_id = $2::uuid)
+	ORDER BY i.codigo`
 
 // resolveEmpresa encontra a empresa pelo número de WhatsApp (somente
 // dígitos, tolerando máscara/prefixo no cadastro). Sem correspondência,
@@ -384,6 +385,7 @@ func (a *App) fetchImoveis(r *http.Request, id, empresaID string) ([]ImovelDTO, 
 			checkin, checkout                           sql.NullString
 			aceitaAnimais, permiteEventos, permiteFumar sql.NullBool
 			regras, instrucoes                          sql.NullString
+			empresaNome, empresaWhats                   string
 		)
 		if err := rows.Scan(
 			&it.ID, &it.Code, &it.Name, &tipo, &bairro, &cidade,
@@ -395,9 +397,13 @@ func (a *App) fetchImoveis(r *http.Request, id, empresaID string) ([]ImovelDTO, 
 			&checkin, &checkout, &estadiaMinima,
 			&aceitaAnimais, &permiteEventos, &permiteFumar,
 			&regras, &instrucoes,
+			&empresaNome, &empresaWhats,
 		); err != nil {
 			return nil, err
 		}
+
+		it.EmpresaNome = empresaNome
+		it.EmpresaWhats = empresaWhats
 
 		it.Type = tipo.String
 		it.Capacity = int(capacity.Int64)

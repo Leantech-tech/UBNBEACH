@@ -8,6 +8,7 @@ import {
   amenityIcon,
   formatGuests,
   plural,
+  linkedWhatsApp,
 } from './utils.js';
 
 const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -129,6 +130,11 @@ Lembrando que amanhã cedo irá ligar automaticamente, para filtrar a água, dei
             ${apartment.featured ? '<span class="badge badge-gold">Destaque</span>' : ''}
             <h3>${esc(apartment.name)}</h3>
             <p class="detail-location">${ICONS.pin}<span>${esc(apartment.location)}</span></p>
+            ${
+              !linkedWhatsApp() && apartment.empresaNome
+                ? `<p class="detail-empresa">${ICONS.building}<span>Anunciado por ${esc(apartment.empresaNome)}</span></p>`
+                : ''
+            }
             ${apartment.address ? `<p class="detail-address">${esc(apartment.address)}</p>` : ''}
             ${apartment.referencePoint ? `<p class="detail-address">${esc(apartment.referencePoint)}</p>` : ''}
           </div>

@@ -9,6 +9,7 @@ import {
   plural,
   buildWhatsAppLink,
   guardImage,
+  isPromoRoute,
   linkedWhatsApp,
 } from './utils.js';
 
@@ -38,26 +39,27 @@ function injectIcons() {
  *  Cards dos apartamentos
  * ------------------------------------------------------------
  *  Os dados vêm da API do backend Go (/api/imoveis), lida
- *  direto do banco, filtrada pela empresa vinculada na URL:
- *  acessar o site com /<whatsapp-da-empresa> no final (ex.:
- *  site.com/12997353792). Sem vínculo válido nenhum imóvel é
- *  exibido. Se a API estiver fora do ar e houver vínculo, o
- *  site cai para os dados locais de exemplo (apartments.js).
+ *  direto do banco. Com /<whatsapp-da-empresa> na URL (ex.:
+ *  site.com/12997353792) mostra só os imóveis daquela empresa; sem
+ *  vínculo (raiz do site) mostra o catálogo público de todas as
+ *  empresas. Na rota /detalhes (propaganda Leantech) nada é carregado.
+ *  Se a API estiver fora do ar e houver vínculo, o site cai para os
+ *  dados locais de exemplo (apartments.js).
  * ============================================================ */
 const API_IMOVEIS_URL = '/api/imoveis';
 const API_EMPRESA_URL = '/api/empresa';
 let APARTMENTS = FALLBACK_APARTMENTS;
 
 async function loadApartments() {
-  const whatsapp = linkedWhatsApp();
-  if (!whatsapp) {
+  if (isPromoRoute()) {
     APARTMENTS = [];
     return;
   }
   if (typeof fetch === 'undefined') return; // ambiente de teste (jsdom)
 
+  const whatsapp = linkedWhatsApp();
   try {
-    const response = await fetch(`${API_IMOVEIS_URL}?whatsapp=${whatsapp}`);
+    const response = await fetch(whatsapp ? `${API_IMOVEIS_URL}?whatsapp=${whatsapp}` : API_IMOVEIS_URL);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     const valid = Array.isArray(data) && data.every((a) => a && a.id && a.name);
@@ -115,6 +117,11 @@ function apartmentCard(apartment, index) {
       <div class="apt-body">
         <h3>${apartment.name}</h3>
         <p class="apt-location">${ICONS.pin}<span>${apartment.location}</span></p>
+        ${
+          !linkedWhatsApp() && apartment.empresaNome
+            ? `<p class="apt-empresa">${ICONS.building}<span>Anunciado por ${apartment.empresaNome}</span></p>`
+            : ''
+        }
 
         <ul class="apt-meta">
           <li>${ICONS.users}<span>${apartment.capacity}</span></li>
@@ -144,14 +151,7 @@ function apartmentCard(apartment, index) {
 
 function renderApartments(filtered = null) {
   const grid = document.getElementById('apartmentsGrid');
-  if (!grid) return;
-
-  if (!linkedWhatsApp()) {
-    grid.innerHTML =
-      '<p class="section-sub">Este site ainda não está vinculado a uma empresa. ' +
-      'Acesse o endereço com o número de WhatsApp da empresa no final (ex.: site.com/12997353792).</p>';
-    return;
-  }
+  if (!grid || isPromoRoute()) return;
 
   const list = filtered ?? APARTMENTS;
 
@@ -201,7 +201,7 @@ function applyApartmentFilters() {
 
 function initApartmentFilters() {
   const form = document.getElementById('aptFilters');
-  if (!form || !linkedWhatsApp()) return;
+  if (!form || isPromoRoute()) return;
 
   const guestsEl = document.getElementById('aptFilterGuests');
   const locationEl = document.getElementById('aptFilterLocation');
@@ -363,14 +363,17 @@ function initHeroTitle() {
 }
 
 /* ============================================================
- *  Modo sem vínculo (propaganda Leantech)
+ *  Modo propaganda (rota /detalhes)
  * ------------------------------------------------------------
- *  Sem empresa vinculada na URL, as seções de imóveis e de
- *  pontos de interesse saem de cena e aparece a propaganda da
- *  Leantech Automação (criadora do sistema).
+ *  Em site.com/detalhes o site vira a página de apresentação da
+ *  Leantech Automação (criadora do sistema): as seções de imóveis,
+ *  pontos de interesse e como funciona saem de cena e aparece a
+ *  propaganda. Nas demais rotas — raiz (catálogo de todas as
+ *  empresas) ou /<whatsapp> (empresa vinculada) — o site funciona
+ *  normalmente.
  * ============================================================ */
 function setupPromoMode() {
-  if (linkedWhatsApp()) return;
+  if (!isPromoRoute()) return;
 
   document.getElementById('apartamentos')?.setAttribute('hidden', '');
   document.getElementById('pontos-interesse')?.setAttribute('hidden', '');
@@ -382,12 +385,29 @@ function setupPromoMode() {
     .querySelectorAll('a[href="#apartamentos"], a[href="#pontos-interesse"], a[href="#como-funciona"]')
     .forEach((a) => a.setAttribute('hidden', ''));
 
-  // Sem empresa vinculada não há para quem reservar: some os botões de
+  // Na propaganda não há para quem reservar: some os botões de
   // WhatsApp (header, menu mobile, faixa de CTA e botão flutuante).
   document.querySelectorAll('[data-whatsapp-general]').forEach((el) => el.setAttribute('hidden', ''));
   document.querySelector('.wa-float')?.setAttribute('hidden', '');
   document.querySelector('.cta-banner')?.setAttribute('hidden', '');
   document.querySelector('.site-footer')?.setAttribute('hidden', '');
+}
+
+/* ============================================================
+ *  Modo catálogo (raiz do site, sem empresa vinculada)
+ * ------------------------------------------------------------
+ *  Sem /<whatsapp> na URL, o site mostra os imóveis e pontos de
+ *  todas as empresas. Como não há uma empresa única por trás da
+ *  página, os botões genéricos de WhatsApp (faixa de CTA e contato
+ *  do rodapé) saem de cena — o contato acontece pelo botão Alugar
+ *  de cada imóvel, que abre o WhatsApp da empresa daquele imóvel.
+ * ============================================================ */
+function setupCatalogMode() {
+  if (linkedWhatsApp() || isPromoRoute()) return;
+
+  document.querySelectorAll('[data-whatsapp-general]').forEach((el) => el.setAttribute('hidden', ''));
+  document.querySelector('.wa-float')?.setAttribute('hidden', '');
+  document.querySelector('.cta-banner')?.setAttribute('hidden', '');
 }
 
 /* ============================================================
@@ -397,6 +417,7 @@ function init() {
   bindConfig();
   injectIcons();
   setupPromoMode();
+  setupCatalogMode();
   renderApartments();
   initApartmentFilters();
   renderPoints();

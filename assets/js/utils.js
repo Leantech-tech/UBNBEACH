@@ -74,6 +74,30 @@ export function linkedWhatsApp() {
 }
 
 /**
+ * Rota da propaganda da Leantech: site.com/detalhes. Nessa rota o site
+ * inteiro vira a página de apresentação do sistema; em qualquer outra
+ * URL sem vínculo (ex.: a raiz "/") o site funciona como catálogo
+ * público com os imóveis e pontos de todas as empresas.
+ */
+export function isPromoRoute() {
+  const segment = window.location.pathname.split('/').filter(Boolean).pop() ?? '';
+  return segment.toLowerCase() === 'detalhes';
+}
+
+/**
+ * Normaliza um número de WhatsApp vindo do banco (pode ter máscara,
+ * com ou sem o 55 do país) para o formato wa.me: dígitos com o 55.
+ * Retorna null quando não há dígitos suficientes.
+ */
+export function normalizeWhatsAppNumber(raw) {
+  const digits = String(raw ?? '').replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.length >= 12 && digits.startsWith('55')) return digits;
+  const local = digits.slice(-11);
+  return local.length >= 10 ? '55' + local : null;
+}
+
+/**
  * Mapeia o slug/ícone de uma categoria de ponto de interesse (nomes
  * do Material Symbols gravados no banco) para o ícone SVG local.
  */
@@ -176,9 +200,11 @@ export function bookingPrice(apartment, nights) {
   return { daily, cleaning, total: daily * nights + cleaning };
 }
 
-/** Monta o link wa.me com a mensagem codificada. */
-export function buildWhatsAppLink(message) {
-  return `https://wa.me/${SITE_CONFIG.whatsappNumber}?text=${encodeURIComponent(message)}`;
+/** Monta o link wa.me com a mensagem codificada. Aceita número
+ *  explícito (ex.: WhatsApp da empresa do imóvel); sem ele, usa o
+ *  número geral do SITE_CONFIG. */
+export function buildWhatsAppLink(message, number = SITE_CONFIG.whatsappNumber) {
+  return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
 }
 
 /** Mensagem contextualizada do fluxo de reserva. */

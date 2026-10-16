@@ -53,11 +53,10 @@ func (a *App) createReserva(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	empresaID, ok := a.resolveEmpresa(r, input.EmpresaWhatsApp)
-	if !ok {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "empresa não encontrada"})
-		return
-	}
+	// Empresa do vínculo da URL, quando existe. A empresa da reserva é
+	// sempre a proprietária do imóvel — no catálogo (raiz do site) não
+	// há vínculo na URL e o imóvel é a única fonte da empresa.
+	empresaVinculo, _ := a.resolveEmpresa(r, input.EmpresaWhatsApp)
 
 	entrada, err := time.ParseInLocation("2006-01-02", strings.TrimSpace(input.Entrada), time.Local)
 	if err != nil {
@@ -82,22 +81,30 @@ func (a *App) createReserva(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Imóvel da empresa (ativo) com horários padrão de check-in/out.
+	// Imóvel ativo com a empresa proprietária e horários padrão de
+	// check-in/out. A empresa da reserva é sempre a do imóvel.
 	var capacidade int
+	var empresaID string
 	var diariaBD, limpezaBD sql.NullFloat64
 	var checkin, checkout sql.NullString
 	err = a.DB().QueryRowContext(r.Context(), `
-		SELECT capacidade, valor_diaria, taxa_limpeza,
+		SELECT capacidade, empresa_id::text, valor_diaria, taxa_limpeza,
 		       checkin_padrao::text, checkout_padrao::text
 		FROM imoveis
-		WHERE id = $1::uuid AND empresa_id = $2::uuid AND status = 'ATIVO'`,
-		input.ImovelID, empresaID).Scan(&capacidade, &diariaBD, &limpezaBD, &checkin, &checkout)
+		WHERE id = $1::uuid AND status = 'ATIVO'`,
+		input.ImovelID).Scan(&capacidade, &empresaID, &diariaBD, &limpezaBD, &checkin, &checkout)
 	if err == sql.ErrNoRows {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "imóvel não encontrado"})
 		return
 	}
 	if err != nil {
 		respondError(w, err)
+		return
+	}
+	// Vínculo da URL (modo empresa) apontando para outra empresa:
+	// o imóvel não pertence a ela.
+	if empresaVinculo != "" && empresaVinculo != empresaID {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "imóvel não encontrado"})
 		return
 	}
 	if input.Hospedes > capacidade {
@@ -205,16 +212,16 @@ func (a *App) cancelReserva(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	empresaID, ok := a.resolveEmpresa(r, input.EmpresaWhatsApp)
-	if !ok {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "empresa não encontrada"})
-		return
+	// Com vínculo na URL o cancelamento fica limitado à empresa; no
+	// catálogo (sem empresa) o id da pré-reserva já identifica o registro.
+	query := `UPDATE reservas SET status = $2, alterado_em = NOW() WHERE id = $1::uuid`
+	args := []any{input.ID, statusCancelada}
+	if empresaID, ok := a.resolveEmpresa(r, input.EmpresaWhatsApp); ok {
+		query += ` AND empresa_id = $3::uuid`
+		args = append(args, empresaID)
 	}
 
-	res, err := a.DB().ExecContext(r.Context(), `
-		UPDATE reservas SET status = $3, alterado_em = NOW()
-		WHERE id = $1::uuid AND empresa_id = $2::uuid`,
-		input.ID, empresaID, statusCancelada)
+	res, err := a.DB().ExecContext(r.Context(), query, args...)
 	if err != nil {
 		respondError(w, err)
 		return
