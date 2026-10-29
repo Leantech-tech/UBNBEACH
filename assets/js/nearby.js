@@ -112,8 +112,8 @@ export function renderNearby(mount, apartment) {
   const embedUrl = query
     ? `https://www.google.com/maps?q=${encodeURIComponent(query)}&z=${origin ? 15 : 12}&output=embed`
     : '';
-  const searchUrl = query
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
+  const directionsUrl = query
+    ? 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(query) + '&travelmode=driving'
     : '';
 
   const allPoints = getPoints().filter((point) => point && point.name);
@@ -133,7 +133,7 @@ export function renderNearby(mount, apartment) {
 
   mount.innerHTML = `
     <div class="detail-block nearby-map-block">
-      <h4>Localização</h4>
+      <h4>Localização e rota</h4>
       ${
         embedUrl
           ? `<div class="nearby-map">
@@ -145,13 +145,13 @@ export function renderNearby(mount, apartment) {
                  allowfullscreen></iframe>
              </div>
              <div class="nearby-map-actions">
-               <a class="btn btn-outline btn-sm" href="${searchUrl}" target="_blank" rel="noopener">
-                 ${ICONS.pin} Abrir no Google Maps
+               <a class="btn btn-outline btn-sm" href="${directionsUrl}" target="_blank" rel="noopener">
+                 ${ICONS.compass} Ver rota até o imóvel
                </a>
              </div>
              ${
                origin
-                 ? '<p class="nearby-note">Mapa baseado nas coordenadas públicas do imóvel.</p>'
+                 ? '<p class="nearby-note">Mapa baseado nas coordenadas públicas do imóvel. Abra a rota no Google Maps para ver o trajeto a partir da sua localização.</p>'
                  : '<p class="nearby-note">Mapa aproximado. Este imóvel não possui coordenadas públicas.</p>'
              }`
           : '<p class="nearby-empty">Localização e coordenadas públicas não disponíveis para este imóvel.</p>'
