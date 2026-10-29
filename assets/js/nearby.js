@@ -51,6 +51,7 @@ function radiusFor(apartment) {
 }
 
 function mapQuery(apartment) {
+  if (apartment.mapQuerySource === 'unavailable') return '';
   if (typeof apartment.mapQuery === 'string' && apartment.mapQuery.trim()) return apartment.mapQuery.trim();
   const origin = coordinates(apartment.latitude, apartment.longitude);
   if (origin) return `${origin.latitude},${origin.longitude}`;
@@ -111,7 +112,7 @@ export function renderNearby(mount, apartment) {
   const radiusKm = radiusFor(apartment);
   const query = mapQuery(apartment);
   const mapSource = String(apartment.mapQuerySource ?? '');
-  const zoom = mapSource === 'description' || mapSource === 'address' ? 17 : origin ? 15 : 12;
+  const zoom = mapSource === 'description' || mapSource === 'address' || mapSource === 'coordinates' ? 17 : origin ? 15 : 12;
   const hasAddress = mapSource === 'description' || mapSource === 'address' ||
     (!mapSource && apartment.address && !apartment.hideAddress);
   const hasCoordinates = mapSource === 'coordinates' || (!mapSource && origin);
@@ -161,7 +162,7 @@ export function renderNearby(mount, apartment) {
                </a>
              </div>
              <p class="nearby-note">${mapNote}</p>`
-          : '<p class="nearby-empty">Localização e coordenadas públicas não disponíveis para este imóvel.</p>'
+          : '<p class="nearby-empty">A localização exata ainda não está cadastrada para este imóvel. Consulte a empresa antes de sair.</p>'
       }
     </div>
 

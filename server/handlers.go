@@ -453,7 +453,7 @@ func (a *App) fetchImoveis(r *http.Request, id, empresaID string) ([]ImovelDTO, 
 			it.Description, descCurta.String,
 			endereco.String, numero.String, complemento.String,
 			bairro.String, cidade.String, uf.String, cep.String,
-			latitude, longitude, it.Location,
+			latitude, longitude,
 		)
 		it.PriceNotes = obsValores.String
 		it.Checkin = trimTime(checkin.String)
@@ -580,8 +580,13 @@ func buildAddress(endereco, numero, complemento, bairro, cidade, uf, cep string,
 	}
 
 	var parts []string
-	street := strings.TrimSpace(strings.Join([]string{endereco, numero}, ", "))
-	street = strings.TrimSuffix(street, ", ")
+	street := strings.TrimSpace(endereco)
+	if number := strings.TrimSpace(numero); number != "" {
+		if street != "" {
+			street += ", "
+		}
+		street += number
+	}
 	if street != "" {
 		parts = append(parts, street)
 	}
@@ -626,14 +631,19 @@ func addressFromDescription(description string) string {
 	return ""
 }
 
-// mapDestination prefers an explicit address from either public description,
-// then the structured address. Hidden display addresses remain masked in
-// Address; this separate destination is used only by the Google Maps section.
+// mapDestination uses the registered pin when available. Without a pin, only
+// a street and number can be sent to Maps; a neighborhood or partial street
+// must not create a misleading route.
 func mapDestination(
 	description, shortDescription, endereco, numero, complemento, bairro, cidade, uf, cep string,
 	latitude, longitude sql.NullFloat64,
-	fallback string,
 ) (string, string) {
+	if latitude.Valid && longitude.Valid &&
+		latitude.Float64 >= -90 && latitude.Float64 <= 90 &&
+		longitude.Float64 >= -180 && longitude.Float64 <= 180 &&
+		(latitude.Float64 != 0 || longitude.Float64 != 0) {
+		return fmt.Sprintf("%.7f,%.7f", latitude.Float64, longitude.Float64), "coordinates"
+	}
 	if address := addressFromDescription(description); address != "" {
 		return address, "description"
 	}
@@ -648,16 +658,7 @@ func mapDestination(
 		return address, "address"
 	}
 
-	if latitude.Valid && longitude.Valid &&
-		latitude.Float64 >= -90 && latitude.Float64 <= 90 &&
-		longitude.Float64 >= -180 && longitude.Float64 <= 180 &&
-		(latitude.Float64 != 0 || longitude.Float64 != 0) {
-		return fmt.Sprintf("%.7f,%.7f", latitude.Float64, longitude.Float64), "coordinates"
-	}
-	if address != "" {
-		return address, "partial-address"
-	}
-	return fallback, "location"
+	return "", "unavailable"
 }
 
 // trimTime remove os segundos de um horário vindo do banco ("14:00:00" -> "14:00").
