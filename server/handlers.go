@@ -12,45 +12,53 @@ import (
 
 // ImovelDTO é o formato exposto à API, pronto para o frontend consumir.
 type ImovelDTO struct {
-	ID             string   `json:"id"`
-	Code           string   `json:"code"`
-	Name           string   `json:"name"`
-	Type           string   `json:"type"`
-	Location       string   `json:"location"`
-	Address        string   `json:"address"`
-	Reference      string   `json:"referencePoint"`
-	Capacity       int      `json:"capacity"`
-	Bedrooms       int      `json:"bedrooms"`
-	Suites         int      `json:"suites"`
-	Beds           int      `json:"beds"`
-	DoubleBeds     int      `json:"doubleBeds"`
-	SingleBeds     int      `json:"singleBeds"`
-	BunkBeds       int      `json:"bunkBeds"`
-	SofaBeds       int      `json:"sofaBeds"`
-	Bathrooms      int      `json:"bathrooms"`
-	Parking        int      `json:"parkingSpaces"`
-	SizeM2         *int     `json:"sizeM2"`
-	Price          *string  `json:"price"`
-	DailyPrice     *float64 `json:"dailyPrice"`
-	WeekendPrice   *float64 `json:"weekendPrice"`
-	CleaningFee    *float64 `json:"cleaningFee"`
-	SecurityDep    *float64 `json:"securityDeposit"`
-	PriceNotes     string   `json:"priceNotes"`
-	Available      bool     `json:"available"`
-	Description    string   `json:"description"`
-	Amenities      []string `json:"amenities"`
-	Images         []string `json:"images"`
-	Featured       bool     `json:"featured"`
-	Checkin        string   `json:"checkin"`
-	Checkout       string   `json:"checkout"`
-	MinStay        int      `json:"minStay"`
-	PetsAllowed    bool     `json:"petsAllowed"`
-	EventsAllowed  bool     `json:"eventsAllowed"`
-	SmokingAllowed bool     `json:"smokingAllowed"`
-	HouseRules     string   `json:"houseRules"`
-	GuestInfo      string   `json:"guestInstructions"`
-	EmpresaNome    string   `json:"empresaNome"`
-	EmpresaWhats   string   `json:"empresaWhatsapp"`
+	ID             string     `json:"id"`
+	Code           string     `json:"code"`
+	Name           string     `json:"name"`
+	Type           string     `json:"type"`
+	Location       string     `json:"location"`
+	Address        string     `json:"address"`
+	HideAddress    bool       `json:"hideAddress"`
+	Latitude       *float64   `json:"latitude"`
+	Longitude      *float64   `json:"longitude"`
+	Reference      string     `json:"referencePoint"`
+	Capacity       int        `json:"capacity"`
+	Bedrooms       int        `json:"bedrooms"`
+	Suites         int        `json:"suites"`
+	Beds           int        `json:"beds"`
+	DoubleBeds     int        `json:"doubleBeds"`
+	SingleBeds     int        `json:"singleBeds"`
+	BunkBeds       int        `json:"bunkBeds"`
+	SofaBeds       int        `json:"sofaBeds"`
+	Bathrooms      int        `json:"bathrooms"`
+	Parking        int        `json:"parkingSpaces"`
+	SizeM2         *int       `json:"sizeM2"`
+	Price          *string    `json:"price"`
+	DailyPrice     *float64   `json:"dailyPrice"`
+	WeekendPrice   *float64   `json:"weekendPrice"`
+	CleaningFee    *float64   `json:"cleaningFee"`
+	SecurityDep    *float64   `json:"securityDeposit"`
+	PriceNotes     string     `json:"priceNotes"`
+	Available      bool       `json:"available"`
+	Description    string     `json:"description"`
+	Amenities      []string   `json:"amenities"`
+	Images         []string   `json:"images"`
+	ImageDetails   []ImageDTO `json:"imageDetails"`
+	Featured       bool       `json:"featured"`
+	Checkin        string     `json:"checkin"`
+	Checkout       string     `json:"checkout"`
+	MinStay        int        `json:"minStay"`
+	PetsAllowed    bool       `json:"petsAllowed"`
+	EventsAllowed  bool       `json:"eventsAllowed"`
+	SmokingAllowed bool       `json:"smokingAllowed"`
+	HouseRules     string     `json:"houseRules"`
+	EmpresaNome    string     `json:"empresaNome"`
+	EmpresaWhats   string     `json:"empresaWhatsapp"`
+}
+
+type ImageDTO struct {
+	URL     string `json:"url"`
+	Caption string `json:"caption"`
 }
 
 // App guarda a conexão com o banco em um ponteiro atômico: a conexão
@@ -311,13 +319,14 @@ func (a *App) getImovel(w http.ResponseWriter, r *http.Request) {
 const imoveisQuery = `
 	SELECT i.id, i.codigo, i.titulo, i.tipo, i.bairro, i.cidade,
 	       i.endereco, i.numero, i.complemento, i.uf, i.cep, i.ocultar_endereco, i.ponto_referencia,
+	       i.latitude, i.longitude,
 	       i.capacidade, i.quartos, i.suites, i.banheiros,
 	       i.camas_casal, i.camas_solteiro, i.beliches, i.sofas_cama, i.vagas,
 	       i.descricao_curta, i.descricao_completa,
 	       i.valor_diaria, i.valor_diaria_fim_semana, i.taxa_limpeza, i.caucao, i.observacao_valores,
 	       i.checkin_padrao::text, i.checkout_padrao::text, i.estadia_minima,
 	       i.aceita_animais, i.permite_eventos, i.permite_fumar,
-	       i.regras_adicionais, i.instrucoes_hospede,
+	       i.regras_adicionais,
 	       coalesce(nullif(e.nome_fantasia, ''), e.razao_social, ''),
 	       coalesce(e.whatsapp, '')
 	FROM imoveis i
@@ -375,6 +384,7 @@ func (a *App) fetchImoveis(r *http.Request, id, empresaID string) ([]ImovelDTO, 
 			uf, cep                                     sql.NullString
 			ocultarEndereco                             sql.NullBool
 			pontoReferencia                             sql.NullString
+			latitude, longitude                         sql.NullFloat64
 			capacity, bedrooms, suites, bathrooms       sql.NullInt64
 			camasCasal, camasSolteiro, beliches, sofas  sql.NullInt64
 			vagas, estadiaMinima                        sql.NullInt64
@@ -384,19 +394,20 @@ func (a *App) fetchImoveis(r *http.Request, id, empresaID string) ([]ImovelDTO, 
 			obsValores                                  sql.NullString
 			checkin, checkout                           sql.NullString
 			aceitaAnimais, permiteEventos, permiteFumar sql.NullBool
-			regras, instrucoes                          sql.NullString
+			regras                                      sql.NullString
 			empresaNome, empresaWhats                   string
 		)
 		if err := rows.Scan(
 			&it.ID, &it.Code, &it.Name, &tipo, &bairro, &cidade,
 			&endereco, &numero, &complemento, &uf, &cep, &ocultarEndereco, &pontoReferencia,
+			&latitude, &longitude,
 			&capacity, &bedrooms, &suites, &bathrooms,
 			&camasCasal, &camasSolteiro, &beliches, &sofas, &vagas,
 			&descCurta, &descCompleta,
 			&diaria, &diariaFds, &taxaLimpeza, &caucao, &obsValores,
 			&checkin, &checkout, &estadiaMinima,
 			&aceitaAnimais, &permiteEventos, &permiteFumar,
-			&regras, &instrucoes,
+			&regras,
 			&empresaNome, &empresaWhats,
 		); err != nil {
 			return nil, err
@@ -424,16 +435,21 @@ func (a *App) fetchImoveis(r *http.Request, id, empresaID string) ([]ImovelDTO, 
 		it.Featured = false
 		it.Amenities = []string{}
 		it.Images = []string{}
+		it.ImageDetails = []ImageDTO{}
 		it.Location = joinLocation(bairro.String, cidade.String)
+		it.HideAddress = ocultarEndereco.Bool
 		it.Address = buildAddress(endereco.String, numero.String, complemento.String,
 			bairro.String, cidade.String, uf.String, cep.String, ocultarEndereco.Bool)
+		if !it.HideAddress && latitude.Valid && longitude.Valid {
+			lat, lng := latitude.Float64, longitude.Float64
+			it.Latitude, it.Longitude = &lat, &lng
+		}
 		it.Reference = pontoReferencia.String
 		it.Description = firstNonEmpty(descCompleta.String, descCurta.String)
 		it.PriceNotes = obsValores.String
 		it.Checkin = trimTime(checkin.String)
 		it.Checkout = trimTime(checkout.String)
 		it.HouseRules = regras.String
-		it.GuestInfo = instrucoes.String
 
 		if diaria.Valid && diaria.Float64 > 0 {
 			price := fmt.Sprintf("R$ %s / noite", formatBRL(diaria.Float64))
@@ -480,7 +496,7 @@ func (a *App) fetchImoveis(r *http.Request, id, empresaID string) ([]ImovelDTO, 
 
 func (a *App) attachPhotos(r *http.Request, out []ImovelDTO, index map[string]int, ids []string) error {
 	rows, err := a.DB().QueryContext(r.Context(), `
-		SELECT imovel_id, url
+		SELECT imovel_id, url, coalesce(legenda, '')
 		FROM imovel_midias
 		WHERE tipo = 'FOTO' AND imovel_id = ANY($1::uuid[])
 		ORDER BY capa DESC, ordem ASC`, pqArray(ids))
@@ -490,12 +506,14 @@ func (a *App) attachPhotos(r *http.Request, out []ImovelDTO, index map[string]in
 	defer rows.Close()
 
 	for rows.Next() {
-		var imovelID, url string
-		if err := rows.Scan(&imovelID, &url); err != nil {
+		var imovelID, url, caption string
+		if err := rows.Scan(&imovelID, &url, &caption); err != nil {
 			return err
 		}
 		if i, ok := index[imovelID]; ok && url != "" {
-			out[i].Images = append(out[i].Images, mediaURL(url))
+			publicURL := mediaURL(url)
+			out[i].Images = append(out[i].Images, publicURL)
+			out[i].ImageDetails = append(out[i].ImageDetails, ImageDTO{URL: publicURL, Caption: caption})
 		}
 	}
 	return rows.Err()
@@ -671,19 +689,19 @@ func respondError(w http.ResponseWriter, err error) {
 
 // AvaliacaoDTO representa uma avaliação de imóvel.
 type AvaliacaoDTO struct {
-	ID        string  `json:"id"`
-	ImovelID  string  `json:"imovel_id"`
-	Nome      string  `json:"nome"`
-	Nota      int     `json:"nota"`
+	ID         string `json:"id"`
+	ImovelID   string `json:"imovel_id"`
+	Nome       string `json:"nome"`
+	Nota       int    `json:"nota"`
 	Comentario string `json:"comentario"`
-	Data      string  `json:"data"`
+	Data       string `json:"data"`
 }
 
 type AvaliacoesResponse struct {
-	Media      float64       `json:"media"`
-	Total      int           `json:"total"`
-	Distribuicao map[int]int `json:"distribuicao"`
-	Avaliacoes []AvaliacaoDTO `json:"avaliacoes"`
+	Media        float64        `json:"media"`
+	Total        int            `json:"total"`
+	Distribuicao map[int]int    `json:"distribuicao"`
+	Avaliacoes   []AvaliacaoDTO `json:"avaliacoes"`
 }
 
 // listAvaliacoes retorna as avaliações de um imóvel.
@@ -768,8 +786,8 @@ func (a *App) createAvaliacao(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var input struct {
-		Nome      string `json:"nome"`
-		Nota      int    `json:"nota"`
+		Nome       string `json:"nome"`
+		Nota       int    `json:"nota"`
 		Comentario string `json:"comentario"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -862,9 +880,9 @@ func (a *App) debugPontos(w http.ResponseWriter, r *http.Request) {
 	defer rows3.Close()
 
 	type cat struct {
-		ID   string `json:"id"`
-		Nome string `json:"nome"`
-		Ativo bool  `json:"ativo"`
+		ID    string `json:"id"`
+		Nome  string `json:"nome"`
+		Ativo bool   `json:"ativo"`
 	}
 	var cats []cat
 	for rows3.Next() {

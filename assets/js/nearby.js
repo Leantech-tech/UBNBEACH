@@ -1,25 +1,17 @@
-import { openModal } from './modal.js';
 import { getCategories, getPoints } from './points.js';
 import { ICONS, categoryIcon } from './utils.js';
 
 /**
  * ============================================================
- *  INTERESSES PRÓXIMOS — popup do detalhe do imóvel
+ *  LOCALIZAÇÃO E INTERESSES PRÓXIMOS — detalhe do imóvel
  * ------------------------------------------------------------
- *  Aberto a partir do botão "Interesses próximos" no modal de
- *  detalhes do imóvel. Calcula a distância (Haversine) do imóvel
- *  até cada ponto de interesse cadastrado e lista os mais
- *  próximos, com atalho de rota no Google Maps.
- *
- *  Origem das coordenadas do imóvel: se o imóvel vier com
- *  latitude/longitude (API), usa direto; caso contrário,
- *  geocodifica o endereço uma única vez via Nominatim
- *  (OpenStreetMap, gratuito) e guarda em cache na sessão.
- *  Pontos sem coordenadas ficam no fim da lista, sem distância.
+ *  Renderizado dentro do modal do imóvel. Usa apenas coordenadas
+ *  publicadas pela API para calcular o raio; endereço/localidade
+ *  servem somente como fallback de mapa aproximado.
  * ============================================================
  */
 
-const NEARBY_LIMIT = 8;
+const DEFAULT_RADIUS_KM = 10;
 
 const esc = (text) =>
   String(text ?? '')
@@ -28,67 +20,52 @@ const esc = (text) =>
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;');
 
-const hasCoords = (lat, lng) =>
-  typeof lat === 'number' && typeof lng === 'number' && (lat !== 0 || lng !== 0);
+function coordinates(lat, lng) {
+  const latitude = Number(lat);
+  const longitude = Number(lng);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return null;
+  if (latitude === 0 && longitude === 0) return null;
+  return { latitude, longitude };
+}
 
 /** Distância em linha reta entre duas coordenadas, em quilômetros. */
-function haversineKm(latA, lngA, latB, lngB) {
+function haversineKm(origin, destination) {
   const R = 6371;
   const toRad = (deg) => (deg * Math.PI) / 180;
-  const dLat = toRad(latB - latA);
-  const dLng = toRad(lngB - lngA);
+  const dLat = toRad(destination.latitude - origin.latitude);
+  const dLng = toRad(destination.longitude - origin.longitude);
   const h =
     Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(latA)) * Math.cos(toRad(latB)) * Math.sin(dLng / 2) ** 2;
+    Math.cos(toRad(origin.latitude)) * Math.cos(toRad(destination.latitude)) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
 const formatDistance = (km) =>
   km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1).replace('.', ',')} km`;
 
-/* ---------- Geocodificação do endereço do imóvel (cacheada) ---------- */
-
-const geocodeCache = new Map();
-
-function geocode(query) {
-  if (geocodeCache.has(query)) return geocodeCache.get(query);
-  const promise = (async () => {
-    try {
-      const url =
-        'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=pt-BR&q=' +
-        encodeURIComponent(query);
-      const response = await fetch(url, { headers: { Accept: 'application/json' } });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      const hit = Array.isArray(data) && data[0];
-      const lat = Number(hit?.lat);
-      const lng = Number(hit?.lon);
-      return hasCoords(lat, lng) ? { latitude: lat, longitude: lng } : null;
-    } catch {
-      return null;
-    }
-  })();
-  geocodeCache.set(query, promise);
-  return promise;
+function radiusFor(apartment) {
+  const configured = Number(apartment.nearbyRadiusKm);
+  return Number.isFinite(configured) && configured > 0
+    ? Math.min(configured, 100)
+    : DEFAULT_RADIUS_KM;
 }
 
-/** Coordenadas de origem: as do imóvel, ou geocodificação do endereço. */
-async function resolveOrigin(apartment) {
-  if (hasCoords(apartment.latitude, apartment.longitude)) {
-    return { latitude: apartment.latitude, longitude: apartment.longitude };
-  }
-  const query = apartment.address || apartment.location;
-  if (!query) return null;
-  return geocode(query);
+function mapQuery(apartment, origin) {
+  if (origin) return `${origin.latitude},${origin.longitude}`;
+  if (typeof apartment.address === 'string' && apartment.address.trim()) return apartment.address.trim();
+  if (typeof apartment.location === 'string' && apartment.location.trim()) return apartment.location.trim();
+  return '';
 }
 
 /* ---------- Montagem do conteúdo ---------- */
 
 function nearbyItem(point, category, distanceKm, originQuery) {
   const location = point.address || [point.neighborhood, point.city].filter(Boolean).join(' · ');
+  const pointCoords = coordinates(point.latitude, point.longitude);
   const destination =
-    hasCoords(point.latitude, point.longitude)
-      ? `${point.latitude},${point.longitude}`
+    pointCoords
+      ? `${pointCoords.latitude},${pointCoords.longitude}`
       : point.address || [point.name, point.city, point.state].filter(Boolean).join(', ');
   const directionsUrl =
     'https://www.google.com/maps/dir/?api=1' +
@@ -97,9 +74,7 @@ function nearbyItem(point, category, distanceKm, originQuery) {
 
   return `
     <li class="nearby-item">
-      <span class="nearby-dist ${distanceKm == null ? 'nearby-dist-unknown' : ''}">
-        ${distanceKm == null ? '—' : formatDistance(distanceKm)}
-      </span>
+      <span class="nearby-dist">${formatDistance(distanceKm)}</span>
       <div class="nearby-info">
         <span class="nearby-cat">
           ${categoryIcon(category?.icon || category?.slug || '')}<span>${esc(category?.name ?? 'Ponto de interesse')}</span>
@@ -113,66 +88,93 @@ function nearbyItem(point, category, distanceKm, originQuery) {
     </li>`;
 }
 
-function nearbyHtml(apartment, origin, ranked) {
-  const categories = getCategories();
-  const categoryOf = (point) => categories.find((c) => c.id === point.categoryId) ?? null;
-  const originQuery = origin ? `${origin.latitude},${origin.longitude}` : (apartment.address || apartment.location || '');
-  const withDistance = ranked.filter((r) => r.distanceKm != null).length;
-
-  const note = !origin
-    ? 'Não foi possível localizar o imóvel automaticamente — exibindo todos os pontos cadastrados, sem distâncias.'
-    : withDistance === 0
-      ? 'As distâncias aparecem quando os pontos têm localização cadastrada no sistema.'
-      : 'Distâncias em linha reta a partir do imóvel.';
-
-  return `
-    <article class="nearby">
-      <header class="nearby-head">
-        <span class="badge badge-gold">${ICONS.compass}<span>Interesses próximos</span></span>
-        <h3>Perto de ${esc(apartment.name)}</h3>
-        <p class="nearby-sub">${esc(apartment.location)}</p>
-      </header>
-
-      ${
-        ranked.length
-          ? `<ol class="nearby-list">
-              ${ranked
-                .map(({ point, distanceKm }) => nearbyItem(point, categoryOf(point), distanceKm, originQuery))
-                .join('')}
-            </ol>`
-          : '<p class="nearby-empty">Nenhum ponto de interesse cadastrado no momento.</p>'
-      }
-
-      <p class="nearby-note">${note}</p>
-    </article>`;
+function emptyMessage({ origin, allPoints, pointsWithCoords, radiusKm }) {
+  if (!origin) {
+    return 'Este imóvel não possui coordenadas públicas; por isso não é possível calcular atrações dentro do raio.';
+  }
+  if (allPoints.length === 0) return 'Nenhum ponto turístico está cadastrado no momento.';
+  if (pointsWithCoords.length === 0) {
+    return 'Os pontos turísticos cadastrados ainda não possuem coordenadas para calcular a distância.';
+  }
+  return `Nenhum ponto turístico cadastrado foi encontrado em um raio de ${formatDistance(radiusKm)}.`;
 }
 
-/* ---------- API pública ---------- */
-
 /**
- * Abre o popup de interesses próximos do imóvel.
- * @param {object} apartment Imóvel do modal de detalhes.
- * @param {() => void} [onClose] Restaura o modal de detalhes subjacente.
+ * Renderiza mapa e pontos turísticos diretamente no detalhe do imóvel.
+ * O raio só usa coordenadas publicadas; nenhum endereço é geocodificado.
  */
-export async function openNearbyModal(apartment, onClose) {
-  const modal = openModal(
-    `<div class="nearby nearby-loading">${ICONS.compass}<p>Buscando os pontos mais próximos…</p></div>`,
-    { onClose }
-  );
+export function renderNearby(mount, apartment) {
+  if (!mount) return;
 
-  const origin = await resolveOrigin(apartment);
-  if (!modal.sheet.isConnected) return; // usuário fechou enquanto buscava
+  const origin = coordinates(apartment.latitude, apartment.longitude);
+  const radiusKm = radiusFor(apartment);
+  const query = mapQuery(apartment, origin);
+  const embedUrl = query
+    ? `https://www.google.com/maps?q=${encodeURIComponent(query)}&z=${origin ? 15 : 12}&output=embed`
+    : '';
+  const searchUrl = query
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
+    : '';
 
-  const ranked = getPoints()
-    .map((point) => ({
-      point,
-      distanceKm:
-        origin && hasCoords(point.latitude, point.longitude)
-          ? haversineKm(origin.latitude, origin.longitude, point.latitude, point.longitude)
-          : null,
-    }))
-    .sort((a, b) => (a.distanceKm == null ? 1 : b.distanceKm == null ? -1 : a.distanceKm - b.distanceKm))
-    .slice(0, NEARBY_LIMIT);
+  const allPoints = getPoints().filter((point) => point && point.name);
+  const pointsWithCoords = allPoints
+    .map((point) => ({ point, coords: coordinates(point.latitude, point.longitude) }))
+    .filter(({ coords }) => coords);
+  const nearbyPoints = origin
+    ? pointsWithCoords
+        .map(({ point, coords }) => ({ point, distanceKm: haversineKm(origin, coords) }))
+        .filter(({ distanceKm }) => distanceKm <= radiusKm)
+        .sort((a, b) => a.distanceKm - b.distanceKm)
+    : [];
 
-  modal.body.innerHTML = nearbyHtml(apartment, origin, ranked);
+  const categories = getCategories();
+  const categoryOf = (point) => categories.find((category) => category.id === point.categoryId) ?? null;
+  const originQuery = origin ? `${origin.latitude},${origin.longitude}` : '';
+
+  mount.innerHTML = `
+    <div class="detail-block nearby-map-block">
+      <h4>Localização</h4>
+      ${
+        embedUrl
+          ? `<div class="nearby-map">
+               <iframe
+                 src="${embedUrl}"
+                 title="Localização de ${esc(apartment.name)} no Google Maps"
+                 loading="lazy"
+                 referrerpolicy="no-referrer-when-downgrade"
+                 allowfullscreen></iframe>
+             </div>
+             <div class="nearby-map-actions">
+               <a class="btn btn-outline btn-sm" href="${searchUrl}" target="_blank" rel="noopener">
+                 ${ICONS.pin} Abrir no Google Maps
+               </a>
+             </div>
+             ${
+               origin
+                 ? '<p class="nearby-note">Mapa baseado nas coordenadas públicas do imóvel.</p>'
+                 : '<p class="nearby-note">Mapa aproximado. Este imóvel não possui coordenadas públicas.</p>'
+             }`
+          : '<p class="nearby-empty">Localização e coordenadas públicas não disponíveis para este imóvel.</p>'
+      }
+    </div>
+
+    <div class="detail-block nearby-attractions">
+      <h4>Pontos turísticos próximos</h4>
+      <p class="nearby-radius">Atrações cadastradas em um raio de ${formatDistance(radiusKm)}.</p>
+      ${
+        nearbyPoints.length
+          ? `<ol class="nearby-list">
+               ${nearbyPoints
+                 .map(({ point, distanceKm }) => nearbyItem(point, categoryOf(point), distanceKm, originQuery))
+                 .join('')}
+             </ol>
+             <p class="nearby-note">Distâncias em linha reta a partir do imóvel.</p>`
+          : `<p class="nearby-empty nearby-empty-card">${emptyMessage({
+              origin,
+              allPoints,
+              pointsWithCoords,
+              radiusKm,
+            })}</p>`
+      }
+    </div>`;
 }

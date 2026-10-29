@@ -1,6 +1,8 @@
 import { formatMonth, isSameDay, stripTime, addMonths } from './utils.js';
 
 const WEEKDAYS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
+const isoDate = (date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
 /**
  * Seletor de período (entrada → saída).
@@ -9,11 +11,17 @@ const WEEKDAYS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
 export class DateRangePicker {
   /**
    * @param {HTMLElement} mount
-   * @param {{ onChange?: (start: Date|null, end: Date|null) => void }} opts
+   * @param {{ onChange?: (start: Date|null, end: Date|null) => void,
+   *           onInvalid?: (reason: string) => void,
+   *           occupied?: {start: string, end: string}[] }} opts
    */
-  constructor(mount, { onChange } = {}) {
+  constructor(mount, { onChange, onInvalid, occupied = [] } = {}) {
     this.mount = mount;
     this.onChange = onChange;
+    this.onInvalid = onInvalid;
+    this.occupied = occupied.filter((period) =>
+      /^\d{4}-\d{2}-\d{2}$/.test(period.start) && /^\d{4}-\d{2}-\d{2}$/.test(period.end)
+    );
     this.start = null;
     this.end = null;
 
@@ -25,6 +33,17 @@ export class DateRangePicker {
   }
 
   destroy() {}
+
+  _isBooked(date) {
+    const key = isoDate(date);
+    return this.occupied.some(({ start, end }) => key >= start && key < end);
+  }
+
+  _crossesBooked(start, end) {
+    const from = isoDate(start);
+    const until = isoDate(end);
+    return this.occupied.some((period) => from < period.end && until > period.start);
+  }
 
   get nights() {
     if (!this.start || !this.end) return 0;
@@ -110,8 +129,13 @@ export class DateRangePicker {
     for (let d = 1; d <= daysInMonth; d++) {
       const current = new Date(year, month, d);
       const isPast = current < this.today;
+      const booked = this._isBooked(current);
+      const validCheckout = booked && this.start && !this.end && current > this.start &&
+        !this._crossesBooked(this.start, current);
+      const unavailable = booked && !validCheckout;
       const cls = ['cal-day'];
       if (isPast) cls.push('is-past');
+      if (booked) cls.push('is-booked');
       if (isSameDay(current, this.today)) cls.push('is-today');
       if (this.start && isSameDay(current, this.start)) cls.push('is-start');
       if (this.end && isSameDay(current, this.end)) cls.push('is-end');
@@ -120,13 +144,14 @@ export class DateRangePicker {
       const label =
         (this.start && isSameDay(current, this.start) ? 'Entrada: ' : '') +
         (this.end && isSameDay(current, this.end) ? 'Saída: ' : '') +
-        current.toLocaleDateString('pt-BR');
+        current.toLocaleDateString('pt-BR') +
+        (booked ? (validCheckout ? ', reservada para entrada, disponível como saída' : ', reservada') : '');
 
       cells += `
         <button type="button"
           class="${cls.join(' ')}"
           data-date="${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}"
-          ${isPast ? 'disabled' : ''}
+          ${isPast || unavailable ? 'disabled' : ''}
           aria-label="${label}">
           <span>${d}</span>
         </button>`;
@@ -143,12 +168,21 @@ export class DateRangePicker {
 
   _select(date) {
     if (!this.start || (this.start && this.end)) {
+      if (this._isBooked(date)) return this.onInvalid?.('booked');
       this.start = date;
       this.end = null;
     } else if (date < this.start) {
+      if (this._isBooked(date)) return this.onInvalid?.('booked');
       this.start = date;
     } else if (!isSameDay(date, this.start)) {
-      this.end = date;
+      if (this._crossesBooked(this.start, date)) {
+        if (this._isBooked(date)) return this.onInvalid?.('booked');
+        this.start = date;
+        this.end = null;
+        this.onInvalid?.('crosses');
+      } else {
+        this.end = date;
+      }
     }
     this.render();
     this.onChange?.(this.start, this.end);

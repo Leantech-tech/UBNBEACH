@@ -28,6 +28,13 @@ function maskPhone(value) {
   return '';
 }
 
+/** Mantém a primeira letra do nome em maiúscula sem alterar o restante do texto. */
+function capitalizeInitial(value) {
+  return String(value ?? '').replace(/^(\s*)(\p{L})/u, (_, spaces, initial) =>
+    spaces + initial.toLocaleUpperCase('pt-BR')
+  );
+}
+
 /**
  * Validação oficial do CPF (dígitos verificadores, módulo 11).
  * Rejeita também CPFs com todos os dígitos iguais.
@@ -122,6 +129,9 @@ export function openClientForm({ onDone, empresa } = {}) {
   waInput.addEventListener('input', () => {
     waInput.value = maskPhone(waInput.value);
   });
+  nomeInput.addEventListener('input', () => {
+    nomeInput.value = capitalizeInitial(nomeInput.value);
+  });
 
   /* ---------- busca automática por CPF ---------- */
   function scheduleLookup() {
@@ -167,7 +177,7 @@ export function openClientForm({ onDone, empresa } = {}) {
       const cliente = await res.json();
       if (seq !== lookupSeq) return;
       foundCliente = cliente;
-      nomeInput.value = cliente.nome ?? '';
+      nomeInput.value = capitalizeInitial(cliente.nome ?? '');
       waInput.value = maskPhone(cliente.whatsapp ?? '');
       emailInput.value = cliente.email ?? '';
       statusEl.textContent = 'Cadastro encontrado! Campos preenchidos automaticamente.';
@@ -198,6 +208,7 @@ export function openClientForm({ onDone, empresa } = {}) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     errorEl.hidden = true;
+    nomeInput.value = capitalizeInitial(nomeInput.value.trim());
 
     const error = validate();
     if (error) {
@@ -215,7 +226,7 @@ export function openClientForm({ onDone, empresa } = {}) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           cpf: cpfInput.value,
-          nome: nomeInput.value.trim(),
+          nome: capitalizeInitial(nomeInput.value.trim()),
           whatsapp: waInput.value,
           email: emailInput.value.trim(),
           empresa: empresaKey,
@@ -234,7 +245,7 @@ export function openClientForm({ onDone, empresa } = {}) {
       // vincular a pré-reserva a esse cadastro. O nome entra aqui porque
       // a resposta da API só traz o id.
       clienteData = await res.json().catch(() => null);
-      if (clienteData) clienteData.nome = nomeInput.value.trim();
+      if (clienteData) clienteData.nome = capitalizeInitial(nomeInput.value.trim());
     } catch {
       // API fora do ar: não travar a reserva — segue para o WhatsApp.
     }

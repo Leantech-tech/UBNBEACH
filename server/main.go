@@ -61,6 +61,8 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/imoveis", app.listImoveis)
 	mux.HandleFunc("GET /api/imoveis/{id}", app.getImovel)
+	mux.HandleFunc("GET /api/imoveis/{id}/disponibilidade", app.getAvailability)
+	mux.HandleFunc("GET /api/imoveis/{id}/cotacao", app.getStayQuote)
 	mux.HandleFunc("GET /api/empresa", app.getEmpresa)
 	mux.HandleFunc("GET /api/pontos-interesse", app.listPontosInteresse)
 	mux.HandleFunc("GET /api/status", app.getStatus)

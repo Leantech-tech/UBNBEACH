@@ -207,22 +207,41 @@ export function buildWhatsAppLink(message, number = SITE_CONFIG.whatsappNumber) 
   return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
 }
 
-/** Mensagem contextualizada do fluxo de reserva. */
-export function buildBookingMessage(apartment, checkIn, checkOut, guests, clientName) {
+/** Mensagem contextualizada do fluxo de reserva com o orçamento retornado pelo app. */
+export function buildBookingMessage(apartment, checkIn, checkOut, guests, clientName, quote = null, anonymous = false) {
   const nights = nightsBetween(checkIn, checkOut);
   const lines = [
-    `Olá! Fiz a pré reserva, pelo site, do ${apartment.name}.`,
+    'Olá! Tenho interesse em reservar pelo site o ' + apartment.name + '.',
     '',
-    `📅 Período: ${formatDate(checkIn)} até ${formatDate(checkOut)}`,
-    `🌙 Diárias: ${plural(nights, 'diária', 'diárias')}`,
-    `👥 Hóspedes: ${plural(guests, 'pessoa', 'pessoas')}`,
+    '📅 Período: ' + formatDate(checkIn) + ' até ' + formatDate(checkOut),
+    '🌙 Diárias: ' + plural(nights, 'diária', 'diárias'),
+    '👥 Hóspedes: ' + plural(guests, 'pessoa', 'pessoas'),
   ];
-  if (clientName) lines.push(`🙋 Cliente: ${clientName}`);
-  const price = bookingPrice(apartment, nights);
-  if (price) {
-    lines.push(`💵 Valor da diária: ${formatBRL(price.daily)}`);
-    if (price.cleaning) lines.push(`💸 Taxa de limpeza: ${formatBRL(price.cleaning)}`);
-    lines.push(`💰 Total estimado: ${formatBRL(price.total)}`);
+  if (clientName && !anonymous) lines.push('🙋 Cliente: ' + clientName);
+
+  if (quote) {
+    (Array.isArray(quote.packages) ? quote.packages : []).forEach((item) => {
+      lines.push('🎉 Pacote ' + (item.name || 'especial') + ': ' + formatBRL(Number(item.price) || 0));
+    });
+    const regularNights = Math.max(0, Number(quote.regularNights) || 0);
+    const dailySubtotal = Number(quote.dailySubtotal);
+    if (regularNights > 0) {
+      lines.push(
+        '💵 Diárias fora dos pacotes (' + plural(regularNights, 'noite', 'noites') + '): ' +
+        (Number.isFinite(dailySubtotal) && dailySubtotal > 0 ? formatBRL(dailySubtotal) : 'Sob consulta')
+      );
+    }
+    const cleaning = Number(quote.cleaningFee);
+    if (Number.isFinite(cleaning) && cleaning > 0) lines.push('💸 Taxa de limpeza: ' + formatBRL(cleaning));
+    const hasTotal = quote.total !== null && quote.total !== undefined && Number.isFinite(Number(quote.total));
+    lines.push('💰 Total estimado: ' + (hasTotal ? formatBRL(Number(quote.total)) : 'Sob consulta'));
+  } else {
+    const price = bookingPrice(apartment, nights);
+    if (price) {
+      lines.push('💵 Valor da diária: ' + formatBRL(price.daily));
+      if (price.cleaning) lines.push('💸 Taxa de limpeza: ' + formatBRL(price.cleaning));
+      lines.push('💰 Total estimado: ' + formatBRL(price.total));
+    }
   }
   return lines.join('\n');
 }

@@ -1,7 +1,7 @@
 import { openModal } from './modal.js';
 import { openBooking } from './booking.js';
 import { createGallery } from './gallery.js';
-import { openNearbyModal } from './nearby.js';
+import { renderNearby } from './nearby.js';
 import { openReviewsModal } from './reviews.js';
 import {
   ICONS,
@@ -22,6 +22,28 @@ function esc(text) {
     .replaceAll('"', '&quot;');
 }
 
+/**
+ * Prioriza as mídias com legenda fornecidas pela API e complementa
+ * com URLs legadas sem duplicar fotos.
+ */
+function propertyImages(apartment) {
+  const result = [];
+  const seen = new Set();
+  const add = (url, caption = '') => {
+    if (typeof url !== 'string' || !url.trim() || seen.has(url)) return;
+    seen.add(url);
+    result.push({ url, caption: typeof caption === 'string' ? caption.trim() : '' });
+  };
+
+  if (Array.isArray(apartment.imageDetails)) {
+    apartment.imageDetails.forEach((image) => add(image?.url, image?.caption));
+  }
+  if (Array.isArray(apartment.images)) {
+    apartment.images.forEach((url) => add(url));
+  }
+  return result;
+}
+
 /** Monta o resumo das camas ("2 de casal · 2 beliches · 1 sofá-cama"). */
 function bedsBreakdown(a) {
   const parts = [];
@@ -39,7 +61,8 @@ function bedsBreakdown(a) {
  * colunas de altura equilibrada.
  */
 export function openApartmentDetail(apartment) {
-  const images = apartment.images.length ? apartment.images : [''];
+  const images = propertyImages(apartment);
+  const amenities = Array.isArray(apartment.amenities) ? apartment.amenities : [];
 
   const meta = [
     { icon: ICONS.users, label: formatGuests(apartment.capacity) },
@@ -78,11 +101,11 @@ export function openApartmentDetail(apartment) {
 
         <div class="detail-blocks">
           ${
-            apartment.amenities.length
+            amenities.length
               ? `<div class="detail-block">
                    <h4>Comodidades</h4>
                    <ul class="detail-amenities">
-                     ${apartment.amenities.map((a) => `<li>${amenityIcon(a)}<span>${esc(a)}</span></li>`).join('')}
+                     ${amenities.map((a) => `<li>${amenityIcon(a)}<span>${esc(a)}</span></li>`).join('')}
                    </ul>
                  </div>`
               : ''
@@ -94,32 +117,6 @@ export function openApartmentDetail(apartment) {
               ${rules.map((r) => `<li><span>${esc(r.label)}</span><strong>${esc(r.value)}</strong></li>`).join('')}
             </ul>
             ${apartment.houseRules ? `<p class="detail-notes">${esc(apartment.houseRules)}</p>` : ''}
-            ${apartment.guestInstructions ? `<p class="detail-notes">${esc(apartment.guestInstructions)}</p>` : ''}
-            ${
-              !apartment.houseRules && !apartment.guestInstructions
-                ? `<p class="detail-notes">🔑Para entrar na casa:
-O portão fica encostado, na porta da sala tem o cofre com a chave dentro (senha 4995). Coloque a senha e abra a tampa, a chave da casa e do portão estará lá dentro
-➡️Porta cadeado: *4995*
-
-➡️Wi-Fi
-Rede: Recanto Uba
-Senha: recantouba23
-
-♻️COLETA DE LIXO (manhã)
-terça, quinta e sábado
-
-🚫PROIBIDO SOM AUTOMOTIVO
-
-🎦 Existe uma câmera de segurança voltada para o portão de entrada.
-
-🏊♀️ A PISCINA PODE ser usada após as 23:00hs, apenas pedimos pra controlar o barulho e não pular, pra respeitarmos os vizinhos.
-
-
-Olá, boa noite , do lado de fora da casa de máquina tem 2 interruptor, lado esquerdo é o Led dentro da piscina , da direita liga os jatos de hidromassagem, com essa da hidromassagem ligado , abre a porta da casa de máquina e abre aos poucos o registro que esta escrito cascata nele ,,, quando quiser pressão mais forte na hidromassagem tem que fechar a cascata , pois se utiliza apenas um motor , quando encerrar o uso , só desligar o interruptor do lado de fora da direita
-
-Lembrando que amanhã cedo irá ligar automaticamente, para filtrar a água, deixe que vai desligar automaticamente no timer</p>`
-                : ''
-            }
           </div>
         </div>
       </div>
@@ -173,10 +170,9 @@ Lembrando que amanhã cedo irá ligar automaticamente, para filtrar a água, dei
             : ''
         }
 
-        <div class="detail-block">
-          <button type="button" class="btn btn-secondary" data-action="nearby">${ICONS.compass} Interesses próximos</button>
-        </div>
       </div>
+
+      <section class="detail-nearby" data-nearby-mount aria-label="Localização e pontos próximos"></section>
 
       <div class="detail-cta">
         <div class="detail-price">
@@ -200,6 +196,7 @@ Lembrando que amanhã cedo irá ligar automaticamente, para filtrar a água, dei
   const gallery = createGallery(modal.body.querySelector('[data-gallery-mount]'), images, {
     alt: `Foto do ${apartment.name}`,
   });
+  renderNearby(modal.body.querySelector('[data-nearby-mount]'), apartment);
 
   /* ---------- CTA Alugar → fluxo de reserva ---------- */
   modal.body.querySelector('[data-action="rent"]')?.addEventListener('click', () => {
@@ -212,14 +209,6 @@ Lembrando que amanhã cedo irá ligar automaticamente, para filtrar a água, dei
     // Esconde o modal de detalhes (não fecha) para evitar flash da grade
     if (detailOverlay) detailOverlay.style.display = 'none';
     openReviewsModal(apartment.id, apartment.name, () => {
-      if (detailOverlay) detailOverlay.style.display = 'flex';
-    });
-  });
-
-  modal.body.querySelector('[data-action="nearby"]')?.addEventListener('click', () => {
-    // Mesmo esquema do botão Avaliar: esconde o detalhe e restaura ao fechar
-    if (detailOverlay) detailOverlay.style.display = 'none';
-    openNearbyModal(apartment, () => {
       if (detailOverlay) detailOverlay.style.display = 'flex';
     });
   });

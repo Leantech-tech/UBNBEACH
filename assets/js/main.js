@@ -1,7 +1,7 @@
 import { SITE_CONFIG } from './config.js';
 import { APARTMENTS as FALLBACK_APARTMENTS } from './apartments.js';
 import { openApartmentDetail } from './detail.js';
-import { loadPoints, renderPoints } from './points.js';
+import { loadPoints } from './points.js';
 import {
   ICONS,
   amenityIcon,
@@ -105,13 +105,18 @@ async function loadCompany() {
 }
 
 function apartmentCard(apartment, index) {
-  const amenitiesPreview = apartment.amenities.slice(0, 3);
-  const extra = apartment.amenities.length - amenitiesPreview.length;
+  const amenities = Array.isArray(apartment.amenities) ? apartment.amenities : [];
+  const amenitiesPreview = amenities.slice(0, 3);
+  const extra = amenities.length - amenitiesPreview.length;
+  const cover =
+    (Array.isArray(apartment.imageDetails) && apartment.imageDetails.find((image) => image?.url)?.url) ||
+    (Array.isArray(apartment.images) && apartment.images[0]) ||
+    '';
 
   return `
     <article class="apt-card reveal" data-delay="${(index % 3) * 100}" data-apartment="${apartment.id}">
       <button type="button" class="apt-media" data-action="details" aria-label="Ver detalhes do ${apartment.name}">
-        <img src="${apartment.images[0] ?? ''}" alt="Foto do ${apartment.name}" loading="lazy" decoding="async" />
+        <img src="${cover}" alt="Foto do ${apartment.name}" loading="lazy" decoding="async" />
       </button>
 
       <div class="apt-body">
@@ -366,8 +371,8 @@ function initHeroTitle() {
  *  Modo propaganda (rota /detalhes)
  * ------------------------------------------------------------
  *  Em site.com/detalhes o site vira a página de apresentação da
- *  Leantech Automação (criadora do sistema): as seções de imóveis,
- *  pontos de interesse e como funciona saem de cena e aparece a
+ *  Leantech Automação (criadora do sistema): as seções de imóveis
+ *  e como funciona saem de cena e aparece a
  *  propaganda. Nas demais rotas — raiz (catálogo de todas as
  *  empresas) ou /<whatsapp> (empresa vinculada) — o site funciona
  *  normalmente.
@@ -376,13 +381,12 @@ function setupPromoMode() {
   if (!isPromoRoute()) return;
 
   document.getElementById('apartamentos')?.setAttribute('hidden', '');
-  document.getElementById('pontos-interesse')?.setAttribute('hidden', '');
   document.getElementById('como-funciona')?.setAttribute('hidden', '');
   document.getElementById('leantechPromo')?.removeAttribute('hidden');
 
   // Esconde os links de navegação das seções removidas
   document
-    .querySelectorAll('a[href="#apartamentos"], a[href="#pontos-interesse"], a[href="#como-funciona"]')
+    .querySelectorAll('a[href="#apartamentos"], a[href="#como-funciona"]')
     .forEach((a) => a.setAttribute('hidden', ''));
 
   // Na propaganda não há para quem reservar: some os botões de
@@ -396,8 +400,8 @@ function setupPromoMode() {
 /* ============================================================
  *  Modo catálogo (raiz do site, sem empresa vinculada)
  * ------------------------------------------------------------
- *  Sem /<whatsapp> na URL, o site mostra os imóveis e pontos de
- *  todas as empresas. Como não há uma empresa única por trás da
+ *  Sem /<whatsapp> na URL, o site mostra os imóveis de todas as
+ *  empresas. Como não há uma empresa única por trás da
  *  página, os botões genéricos de WhatsApp (faixa de CTA e contato
  *  do rodapé) saem de cena — o contato acontece pelo botão Alugar
  *  de cada imóvel, que abre o WhatsApp da empresa daquele imóvel.
@@ -420,7 +424,6 @@ function init() {
   setupCatalogMode();
   renderApartments();
   initApartmentFilters();
-  renderPoints();
   initNavigation();
   initReveals();
   initHeroTitle();

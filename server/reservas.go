@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -20,16 +21,16 @@ const statusCancelada = "CANCELADA"
 
 // ReservaInput é o payload do site para criar uma pré-reserva.
 type ReservaInput struct {
-	ImovelID      string  `json:"imovelId"`
-	ClienteID     string  `json:"clienteId"`
-	EmpresaWhatsApp string `json:"empresa"`
-	Entrada       string  `json:"entrada"` // YYYY-MM-DD
-	Saida         string  `json:"saida"`   // YYYY-MM-DD
-	Hospedes      int     `json:"hospedes"`
-	ValorDiaria   float64 `json:"valorDiaria"`
-	TaxaLimpeza   float64 `json:"taxaLimpeza"`
-	ValorTotal    float64 `json:"valorTotal"`
-	Observacoes   string  `json:"observacoes"`
+	ImovelID        string  `json:"imovelId"`
+	ClienteID       string  `json:"clienteId"`
+	EmpresaWhatsApp string  `json:"empresa"`
+	Entrada         string  `json:"entrada"` // YYYY-MM-DD
+	Saida           string  `json:"saida"`   // YYYY-MM-DD
+	Hospedes        int     `json:"hospedes"`
+	ValorDiaria     float64 `json:"valorDiaria"`
+	TaxaLimpeza     float64 `json:"taxaLimpeza"`
+	ValorTotal      float64 `json:"valorTotal"`
+	Observacoes     string  `json:"observacoes"`
 }
 
 // createReserva grava a pré-reserva feita no site na tabela compartilhada
@@ -53,27 +54,9 @@ func (a *App) createReserva(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Empresa do vínculo da URL, quando existe. A empresa da reserva é
-	// sempre a proprietária do imóvel — no catálogo (raiz do site) não
-	// há vínculo na URL e o imóvel é a única fonte da empresa.
-	empresaVinculo, _ := a.resolveEmpresa(r, input.EmpresaWhatsApp)
-
-	entrada, err := time.ParseInLocation("2006-01-02", strings.TrimSpace(input.Entrada), time.Local)
+	entrada, saida, err := parseStayDates(input.Entrada, input.Saida)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "data de entrada inválida"})
-		return
-	}
-	saida, err := time.ParseInLocation("2006-01-02", strings.TrimSpace(input.Saida), time.Local)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "data de saída inválida"})
-		return
-	}
-	if !saida.After(entrada) {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "a saída deve ser após a entrada"})
-		return
-	}
-	if entrada.Before(time.Now().Truncate(24 * time.Hour)) {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "a entrada não pode ser no passado"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 	if input.Hospedes < 1 {
@@ -81,34 +64,20 @@ func (a *App) createReserva(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Imóvel ativo com a empresa proprietária e horários padrão de
-	// check-in/out. A empresa da reserva é sempre a do imóvel.
-	var capacidade int
-	var empresaID string
-	var diariaBD, limpezaBD sql.NullFloat64
-	var checkin, checkout sql.NullString
-	err = a.DB().QueryRowContext(r.Context(), `
-		SELECT capacidade, empresa_id::text, valor_diaria, taxa_limpeza,
-		       checkin_padrao::text, checkout_padrao::text
-		FROM imoveis
-		WHERE id = $1::uuid AND status = 'ATIVO'`,
-		input.ImovelID).Scan(&capacidade, &empresaID, &diariaBD, &limpezaBD, &checkin, &checkout)
-	if err == sql.ErrNoRows {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "imóvel não encontrado"})
-		return
-	}
+	property, err := a.loadBookingProperty(r, input.ImovelID, input.EmpresaWhatsApp)
 	if err != nil {
-		respondError(w, err)
+		writeBookingPropertyError(w, err)
 		return
 	}
-	// Vínculo da URL (modo empresa) apontando para outra empresa:
-	// o imóvel não pertence a ela.
-	if empresaVinculo != "" && empresaVinculo != empresaID {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "imóvel não encontrado"})
-		return
-	}
-	if input.Hospedes > capacidade {
+	if input.Hospedes > property.Capacity {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "quantidade de hóspedes acima da capacidade do imóvel"})
+		return
+	}
+	noites := int(saida.Sub(entrada).Hours() / 24)
+	if noites < property.MinStay {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{
+			"error": fmt.Sprintf("A estadia mínima é de %d noite(s).", property.MinStay), "minStay": property.MinStay,
+		})
 		return
 	}
 
@@ -116,7 +85,7 @@ func (a *App) createReserva(w http.ResponseWriter, r *http.Request) {
 	var clienteEmpresa string
 	err = a.DB().QueryRowContext(r.Context(), `
 		SELECT empresa_id::text FROM clientes WHERE id = $1::uuid`, input.ClienteID).Scan(&clienteEmpresa)
-	if err == sql.ErrNoRows || (err == nil && clienteEmpresa != empresaID) {
+	if err == sql.ErrNoRows || (err == nil && clienteEmpresa != property.EmpresaID) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "cliente inválido"})
 		return
 	}
@@ -126,25 +95,16 @@ func (a *App) createReserva(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Horários de check-in/out: os do imóvel, ou 14:00 / 11:00.
-	entradaTS := mergeTime(entrada, checkin.String, "14:00")
-	saidaTS := mergeTime(saida, checkout.String, "11:00")
+	entradaTS := mergeTime(entrada, property.Checkin.String, "14:00")
+	saidaTS := mergeTime(saida, property.Checkout.String, "11:00")
 
 	// Período livre? ORCAMENTO, FINALIZADA e CANCELADA não ocupam o imóvel.
-	var conflitoID string
-	err = a.DB().QueryRowContext(r.Context(), `
-		SELECT id FROM reservas
-		WHERE empresa_id = $1::uuid
-		  AND imovel_id = $2::uuid
-		  AND status IN ('PRE_RESERVA', 'CONFIRMADA', 'HOSPEDADO', 'BLOQUEIO')
-		  AND entrada < $4::timestamp
-		  AND saida > $3::timestamp
-		LIMIT 1`,
-		empresaID, input.ImovelID, entradaTS, saidaTS).Scan(&conflitoID)
-	if err != nil && err != sql.ErrNoRows {
+	conflict, err := a.hasBookingConflict(r.Context(), property, entrada, saida)
+	if err != nil {
 		respondError(w, err)
 		return
 	}
-	if conflitoID != "" {
+	if conflict {
 		writeJSON(w, http.StatusConflict, map[string]any{
 			"error":    "Esse período desejado já está reservado!",
 			"conflict": true,
@@ -152,20 +112,32 @@ func (a *App) createReserva(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Valores: os enviados pelo site (o que o cliente viu no resumo);
-	// sem preço cadastrado, caem para os valores do imóvel/0.
-	diaria := input.ValorDiaria
-	if diaria <= 0 && diariaBD.Valid {
-		diaria = diariaBD.Float64
+	// O banco do sistema de locação é a fonte do preço. Nunca aceita
+	// valorDiaria/taxaLimpeza/valorTotal enviados pelo navegador.
+	quote, err := a.quoteStay(r.Context(), property, entrada, saida)
+	if err != nil {
+		respondError(w, err)
+		return
 	}
-	limpeza := input.TaxaLimpeza
-	if limpeza <= 0 && limpezaBD.Valid {
-		limpeza = limpezaBD.Float64
+	if quote.Total != nil && input.ValorTotal > 0 && math.Abs(input.ValorTotal-*quote.Total) > 0.01 {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error":        "O preço deste período mudou. Confira o novo total antes de continuar.",
+			"priceChanged": true, "quote": quote,
+		})
+		return
 	}
-	total := input.ValorTotal
-	if total <= 0 {
-		noites := int(saida.Sub(entrada).Hours() / 24)
-		total = diaria*float64(noites) + limpeza
+	diaria := 0.0
+	if len(quote.Packages) == 0 && quote.RegularNights > 0 {
+		diaria = roundMoney(quote.DailySubtotal / float64(quote.RegularNights))
+	}
+	limpeza := quote.CleaningFee
+	total := 0.0
+	if quote.Total != nil {
+		total = *quote.Total
+	}
+	observacoes := strings.TrimSpace(input.Observacoes)
+	for _, p := range quote.Packages {
+		observacoes += fmt.Sprintf(" Pacote %s (%s a %s): R$ %.2f; valor integral aplicado.", p.Name, p.Start, p.End, p.Price)
 	}
 
 	var id string
@@ -176,15 +148,15 @@ func (a *App) createReserva(w http.ResponseWriter, r *http.Request) {
 		VALUES ($1::uuid, $2::uuid, $3::uuid, $4::timestamp, $5::timestamp,
 		        $6, $7, $8, $9, $10, $11, $12)
 		RETURNING id`,
-		empresaID, input.ImovelID, input.ClienteID, entradaTS, saidaTS,
+		property.EmpresaID, input.ImovelID, input.ClienteID, entradaTS, saidaTS,
 		input.Hospedes, diaria, limpeza, total,
-		strings.TrimSpace(input.Observacoes), origemSite, statusPreReserva).Scan(&id)
+		strings.TrimSpace(observacoes), origemSite, statusPreReserva).Scan(&id)
 	if err != nil {
 		respondError(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, map[string]string{"id": id, "status": statusPreReserva})
+	writeJSON(w, http.StatusCreated, map[string]any{"id": id, "status": statusPreReserva, "quote": quote})
 }
 
 // ReservaCancelInput é o payload para cancelar uma pré-reserva feita pelo site.
