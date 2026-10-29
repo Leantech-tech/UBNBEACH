@@ -5,9 +5,8 @@ import { ICONS, categoryIcon } from './utils.js';
  * ============================================================
  *  LOCALIZAÇÃO E INTERESSES PRÓXIMOS — detalhe do imóvel
  * ------------------------------------------------------------
- *  Renderizado dentro do modal do imóvel. Usa apenas coordenadas
- *  publicadas pela API para calcular o raio; endereço/localidade
- *  servem somente como fallback de mapa aproximado.
+ *  Renderizado dentro do modal do imóvel. O mapa usa o destino
+ *  preciso publicado pela API; atrações próximas usam coordenadas.
  * ============================================================
  */
 
@@ -51,7 +50,9 @@ function radiusFor(apartment) {
     : DEFAULT_RADIUS_KM;
 }
 
-function mapQuery(apartment, origin) {
+function mapQuery(apartment) {
+  if (typeof apartment.mapQuery === 'string' && apartment.mapQuery.trim()) return apartment.mapQuery.trim();
+  const origin = coordinates(apartment.latitude, apartment.longitude);
   if (origin) return `${origin.latitude},${origin.longitude}`;
   if (typeof apartment.address === 'string' && apartment.address.trim()) return apartment.address.trim();
   if (typeof apartment.location === 'string' && apartment.location.trim()) return apartment.location.trim();
@@ -108,9 +109,19 @@ export function renderNearby(mount, apartment) {
 
   const origin = coordinates(apartment.latitude, apartment.longitude);
   const radiusKm = radiusFor(apartment);
-  const query = mapQuery(apartment, origin);
+  const query = mapQuery(apartment);
+  const mapSource = String(apartment.mapQuerySource ?? '');
+  const zoom = mapSource === 'description' || mapSource === 'address' ? 17 : origin ? 15 : 12;
+  const hasAddress = mapSource === 'description' || mapSource === 'address' ||
+    (!mapSource && apartment.address && !apartment.hideAddress);
+  const hasCoordinates = mapSource === 'coordinates' || (!mapSource && origin);
+  const mapNote = hasAddress
+      ? 'O Google Maps usa o endereço completo cadastrado para este imóvel.'
+      : mapSource === 'partial-address' || mapSource === 'location' || !hasCoordinates
+        ? 'O endereço completo não está disponível no cadastro; confirme a localização com a empresa antes de sair.'
+        : 'A rota usa as coordenadas cadastradas para este imóvel.';
   const embedUrl = query
-    ? `https://www.google.com/maps?q=${encodeURIComponent(query)}&z=${origin ? 15 : 12}&output=embed`
+    ? `https://www.google.com/maps?q=${encodeURIComponent(query)}&z=${zoom}&output=embed`
     : '';
   const directionsUrl = query
     ? 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(query) + '&travelmode=driving'
@@ -149,11 +160,7 @@ export function renderNearby(mount, apartment) {
                  ${ICONS.compass} Ver rota até o imóvel
                </a>
              </div>
-             ${
-               origin
-                 ? '<p class="nearby-note">Mapa baseado nas coordenadas públicas do imóvel. Abra a rota no Google Maps para ver o trajeto a partir da sua localização.</p>'
-                 : '<p class="nearby-note">Mapa aproximado. Este imóvel não possui coordenadas públicas.</p>'
-             }`
+             <p class="nearby-note">${mapNote}</p>`
           : '<p class="nearby-empty">Localização e coordenadas públicas não disponíveis para este imóvel.</p>'
       }
     </div>

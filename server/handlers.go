@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync/atomic"
 )
@@ -18,6 +19,8 @@ type ImovelDTO struct {
 	Type           string     `json:"type"`
 	Location       string     `json:"location"`
 	Address        string     `json:"address"`
+	MapQuery       string     `json:"mapQuery"`
+	MapQuerySource string     `json:"mapQuerySource"`
 	HideAddress    bool       `json:"hideAddress"`
 	Latitude       *float64   `json:"latitude"`
 	Longitude      *float64   `json:"longitude"`
@@ -446,6 +449,12 @@ func (a *App) fetchImoveis(r *http.Request, id, empresaID string) ([]ImovelDTO, 
 		}
 		it.Reference = pontoReferencia.String
 		it.Description = firstNonEmpty(descCompleta.String, descCurta.String)
+		it.MapQuery, it.MapQuerySource = mapDestination(
+			it.Description, descCurta.String,
+			endereco.String, numero.String, complemento.String,
+			bairro.String, cidade.String, uf.String, cep.String,
+			latitude, longitude, it.Location,
+		)
 		it.PriceNotes = obsValores.String
 		it.Checkin = trimTime(checkin.String)
 		it.Checkout = trimTime(checkout.String)
@@ -593,6 +602,62 @@ func buildAddress(endereco, numero, complemento, bairro, cidade, uf, cep string,
 		parts = append(parts, "CEP "+cep)
 	}
 	return strings.Join(parts, ", ")
+}
+
+var (
+	mapStreetPattern = regexp.MustCompile("(?i)(^|[^[:alnum:]])(rua|r\\.?|avenida|av\\.?|travessa|tv\\.?|alameda|al\\.?|estrada|rodovia|rod\\.?|praça|praca|largo|viela|servidão|servidao)([[:space:],]|$)")
+	mapNumberPattern = regexp.MustCompile("(?i)(^|[^0-9])([0-9]{1,6}|s\\s*/\\s*n)([^0-9]|$)")
+)
+
+// addressFromDescription finds an explicit street-and-number line without
+// using the whole property description as a Google Maps search query.
+func addressFromDescription(description string) string {
+	for _, line := range strings.Split(description, "\n") {
+		line = strings.TrimSpace(line)
+		matches := mapStreetPattern.FindStringSubmatchIndex(line)
+		if len(matches) < 6 {
+			continue
+		}
+		address := strings.TrimSpace(line[matches[4]:])
+		if mapNumberPattern.MatchString(address) {
+			return address
+		}
+	}
+	return ""
+}
+
+// mapDestination prefers an explicit address from either public description,
+// then the structured address. Hidden display addresses remain masked in
+// Address; this separate destination is used only by the Google Maps section.
+func mapDestination(
+	description, shortDescription, endereco, numero, complemento, bairro, cidade, uf, cep string,
+	latitude, longitude sql.NullFloat64,
+	fallback string,
+) (string, string) {
+	if address := addressFromDescription(description); address != "" {
+		return address, "description"
+	}
+	if address := addressFromDescription(shortDescription); address != "" {
+		return address, "description"
+	}
+
+	address := buildAddress(endereco, numero, complemento, bairro, cidade, uf, cep, false)
+	street := strings.TrimSpace(endereco)
+	houseNumber := strings.TrimSpace(numero)
+	if street != "" && houseNumber != "" && address != "" {
+		return address, "address"
+	}
+
+	if latitude.Valid && longitude.Valid &&
+		latitude.Float64 >= -90 && latitude.Float64 <= 90 &&
+		longitude.Float64 >= -180 && longitude.Float64 <= 180 &&
+		(latitude.Float64 != 0 || longitude.Float64 != 0) {
+		return fmt.Sprintf("%.7f,%.7f", latitude.Float64, longitude.Float64), "coordinates"
+	}
+	if address != "" {
+		return address, "partial-address"
+	}
+	return fallback, "location"
 }
 
 // trimTime remove os segundos de um horário vindo do banco ("14:00:00" -> "14:00").
