@@ -394,46 +394,28 @@ function initHeroTitle() {
 }
 
 /* ============================================================
- *  Vídeo do hero sob demanda
+ *  Animação automática do hero
  * ------------------------------------------------------------
- *  Mantém o pôster visível durante o carregamento inicial. Só busca
- *  o vídeo depois da primeira carga, quando a seção está visível e
- *  o dispositivo não pediu menos movimento ou economia de dados.
+ *  Carrega o vídeo quando o destaque fica visível e inicia a
+ *  reprodução sem exigir interação do visitante.
  * ============================================================ */
 function initHeroVideo() {
   const video = document.querySelector('.hero-bg video');
   const source = video?.querySelector('source[data-src]');
   if (!video || !source) return;
 
-  const hero = video.closest('.hero');
-  if (!hero) return;
+  video.muted = true;
+  video.defaultMuted = true;
+  video.autoplay = true;
+  video.loop = true;
+  video.playsInline = true;
 
-  const playButton = document.createElement('button');
-  playButton.type = 'button';
-  playButton.className = 'hero-video-control';
-  playButton.hidden = true;
-  playButton.setAttribute('aria-label', 'Reproduzir animação do destaque');
-  playButton.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l10-6.5z"/></svg><span>Reproduzir animação</span>';
-  hero.appendChild(playButton);
-
-  const buttonText = playButton.querySelector('span');
-  const showPlayButton = (label = 'Reproduzir animação') => {
-    buttonText.textContent = label;
-    playButton.setAttribute('aria-label', label);
-    playButton.hidden = false;
-  };
-  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-  const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  const conserveData = connection?.saveData || /^(slow-2g|2g)$/.test(connection?.effectiveType ?? '');
-
-  let ready = false;
   let loaded = false;
   let visible = !('IntersectionObserver' in window);
   let waitingForVideo = false;
-  let loadTimer = 0;
 
   const syncPlayback = () => {
-    if (!ready || !visible || document.hidden) {
+    if (!visible || document.hidden) {
       video.pause();
       return;
     }
@@ -443,22 +425,13 @@ function initHeroVideo() {
       source.src = source.dataset.src || source.getAttribute('src');
       source.removeAttribute('data-src');
       video.load();
-      window.clearTimeout(loadTimer);
-      loadTimer = window.setTimeout(() => {
-        if (video.paused && video.readyState < 2) showPlayButton('Tentar reproduzir novamente');
-      }, 8000);
     }
 
     if (video.readyState >= 2) {
       try {
         const playback = video.play();
-        playback?.then(() => {
-          window.clearTimeout(loadTimer);
-          playButton.hidden = true;
-        }).catch(() => showPlayButton());
-      } catch {
-        showPlayButton();
-      }
+        playback?.catch(() => {});
+      } catch {}
       return;
     }
 
@@ -475,27 +448,6 @@ function initHeroVideo() {
     }
   };
 
-  playButton.addEventListener('click', () => {
-    ready = true;
-    visible = true;
-    if (video.error) loaded = false;
-    syncPlayback();
-  });
-  video.addEventListener('playing', () => {
-    window.clearTimeout(loadTimer);
-    playButton.hidden = true;
-  });
-  video.addEventListener('error', () => {
-    loaded = false;
-    waitingForVideo = false;
-    showPlayButton('Tentar reproduzir novamente');
-  });
-
-  if (reducedMotion || conserveData) {
-    showPlayButton();
-    return;
-  }
-
   if ('IntersectionObserver' in window) {
     const observer = new IntersectionObserver((entries) => {
       visible = entries.some((entry) => entry.isIntersecting);
@@ -505,18 +457,7 @@ function initHeroVideo() {
   }
 
   document.addEventListener('visibilitychange', syncPlayback);
-
-  const scheduleVideo = () => {
-    const startWhenIdle = () => {
-      ready = true;
-      syncPlayback();
-    };
-    if ('requestIdleCallback' in window) window.requestIdleCallback(startWhenIdle, { timeout: 2500 });
-    else window.setTimeout(startWhenIdle, 1400);
-  };
-
-  if (document.readyState === 'complete') scheduleVideo();
-  else window.addEventListener('load', scheduleVideo, { once: true });
+  syncPlayback();
 }
 
 /* ============================================================
