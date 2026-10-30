@@ -1377,6 +1377,9 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 }
 .gallery-photo-grid .gallery-photo:first-child { grid-column: span 2; grid-row: span 2; }
 .gallery-photo-grid.has-1 .gallery-photo:first-child { grid-column: 1 / -1; }
+.gallery-photo-grid.has-1 { display: flex; justify-content: center; aspect-ratio: auto; }
+.gallery-photo-grid.has-1 .gallery-photo { flex: 0 1 780px; width: min(100%, 780px); height: clamp(280px, 40vw, 460px); }
+.gallery-photo-grid.has-1 img { object-fit: contain; }
 .gallery-photo-grid.has-2 .gallery-photo:nth-child(2) { grid-column: span 2; grid-row: span 2; }
 .gallery-photo-grid.has-3 .gallery-photo:nth-child(n+2) { grid-column: span 2; }
 .gallery-photo-grid.has-4 .gallery-photo:nth-child(4) { grid-column: span 2; }
@@ -1435,6 +1438,7 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   .gallery-photo-grid .gallery-photo:first-child { grid-column: 1 / -1; grid-row: auto; }
   .gallery-photo-grid.has-1 .gallery-photo:first-child,
   .gallery-photo-grid.has-2 .gallery-photo:first-child { min-height: clamp(220px, 62vw, 380px); }
+  .gallery-photo-grid.has-1 .gallery-photo { flex-basis: 420px; width: min(100%, 420px); height: clamp(220px, 58vw, 340px); min-height: 0; }
   .gallery-photo-grid.has-2 .gallery-photo:nth-child(2),
   .gallery-photo-grid.has-4 .gallery-photo:nth-child(4) { grid-column: 1 / -1; grid-row: auto; }
   .gallery-photo-grid.has-3 .gallery-photo:nth-child(n+2) { grid-column: auto; }
@@ -2821,3 +2825,108 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .client-choice-title { margin: 0; padding: 0 2.8rem 0 0; font-size: 1.35rem; color: var(--ink); }
 .client-choice p { margin: 0 0 0.2rem; color: var(--muted); font-size: 0.92rem; line-height: 1.55; }
 .client-choice .btn { width: 100%; justify-content: center; }
+
+/* ============================================================
+   AJUSTES GERAIS PARA CELULAR
+   ============================================================ */
+@media (max-width: 900px) {
+  .mobile-menu { height: 100dvh; }
+  .mobile-menu-inner { height: 100%; min-height: 0; }
+  .mobile-menu-nav { min-height: 0; overscroll-behavior: contain; }
+}
+
+@media (max-width: 760px) {
+  .container { width: calc(100% - 2rem); }
+  .section { padding: clamp(3rem, 8vw, 4rem) 0; }
+  .section-head { max-width: 100%; margin-bottom: 2rem; }
+  .section-head h2 { font-size: clamp(1.7rem, 6vw, 2.25rem); text-wrap: balance; }
+  .section-sub { font-size: 1rem; line-height: 1.65; }
+  .eyebrow { font-size: 0.7rem; letter-spacing: 0.18em; }
+
+  .btn { min-height: 44px; padding: 0.75rem 1rem; line-height: 1.35; white-space: normal; }
+  .location-map, .location-map iframe { min-height: 260px; }
+  .location-map iframe { height: 260px; }
+
+  .poi-filters { gap: 0.5rem; margin-bottom: 1.5rem; padding-inline: 0.1rem; overscroll-behavior-x: contain; }
+  .poi-filter { min-height: 44px; padding: 0.65rem 0.95rem; }
+  .poi-media { aspect-ratio: 16 / 10; }
+  .poi-body { padding: 1rem; }
+  .poi-map iframe { height: clamp(220px, 62vw, 280px); }
+  .nearby-map iframe { height: clamp(220px, 62vw, 280px); }
+
+  .gallery-related-controls button { width: 40px; height: 40px; }
+  .gallery-viewer-arrow { width: 40px; height: 40px; }
+  .gallery-viewer-stage { grid-template-columns: 42px minmax(0, 1fr) 42px; }
+}
+
+@media (max-width: 600px) {
+  .nearby-item { align-items: flex-start; }
+  .nearby-dist { min-width: 3.8rem; }
+  .nearby-route { min-height: 44px; }
+
+  .review-summary { grid-template-columns: 1fr; gap: 1rem; }
+  .review-header { align-items: flex-start; flex-wrap: wrap; }
+  .review-header time { white-space: normal; }
+  .review-item { padding: 1rem; }
+
+  .promo-card { padding: 1.5rem 1rem; }
+  .promo-title { font-size: clamp(1.25rem, 5vw, 1.6rem); }
+  .promo-site { max-width: 100%; overflow-wrap: anywhere; }
+}
+
+@media (max-width: 480px) {
+  .modal-overlay { align-items: flex-end; padding: 0; }
+  .modal-sheet {
+    width: 100%;
+    max-height: calc(100dvh - env(safe-area-inset-top));
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+  .modal-close {
+    position: sticky;
+    top: calc(0.4rem + env(safe-area-inset-top));
+    margin: 0.4rem 0.4rem -3rem auto;
+  }
+  .modal-body { padding: 1rem; padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .modal-detail .modal-body { padding: 0.9rem; padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .modal-booking .modal-body { padding-top: 0.9rem; }
+
+  .cal { padding: 0.75rem; }
+  .cal-header { flex-wrap: wrap; gap: 0.5rem; }
+  .cal-select-wrap { flex: 1 1 10rem; min-width: 0; }
+  .cal-select { width: 100%; min-height: 44px; font-size: 16px; }
+  .cal-nav-btn { width: 40px; height: 40px; }
+  .cal-day { height: 40px; max-height: none; aspect-ratio: auto; }
+
+  .stepper { gap: clamp(0.8rem, 4vw, 1.4rem); padding-top: 1.2rem; }
+  .stepper button { width: 48px; height: 48px; flex: none; }
+
+  .bk-summary > div { align-items: flex-start; gap: 0.5rem; padding: 0.65rem 0.8rem; }
+  .bk-summary dt { flex: 0 1 38%; }
+  .bk-summary dd { min-width: 0; max-width: 62%; overflow-wrap: anywhere; }
+  .bk-quote-lines > div { align-items: flex-start; gap: 0.5rem; }
+  .bk-quote-lines dt { min-width: 0; overflow-wrap: anywhere; }
+  .bk-quote-lines dd { flex: none; max-width: 42%; overflow-wrap: anywhere; }
+
+  .client-form-head { padding: 0 2.5rem 0 0.2rem; text-align: left; }
+  #clientForm input,
+  .review-form input,
+  .review-form textarea,
+  .apt-filter-field input,
+  .apt-filter-field select { min-height: 44px; font-size: 16px; }
+  .review-form .stars .star-btn { min-width: 44px; min-height: 44px; align-items: center; justify-content: center; }
+  .stars svg { width: 1.8rem; height: 1.8rem; }
+
+  .bk-foot { padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
+  .gallery-viewer-stage { grid-template-columns: 40px minmax(0, 1fr) 40px; gap: 0.25rem; }
+}
+
+@media (max-width: 360px) {
+  .container { width: calc(100% - 1.5rem); }
+  .section-head h2 { font-size: 1.65rem; }
+  .modal-body { padding-inline: 0.85rem; }
+  .modal-detail .modal-body { padding-inline: 0.75rem; }
+  .bk-steps { gap: 0.25rem; }
+  .bk-step { padding-right: 0.55rem; }
+  .gallery-lightbox-content { width: calc(100% - 1.5rem); }
+  .gallery-related { padding-inline: 0.75rem; }
+}

@@ -264,21 +264,28 @@ function initNavigation() {
     menu.classList.remove('is-open');
     toggle.classList.remove('is-active');
     toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-label', 'Abrir menu');
     menu.setAttribute('aria-hidden', 'true');
     header.classList.remove('menu-open');
     document.body.classList.remove('no-scroll');
   };
 
   toggle.addEventListener('click', () => {
-    const open = menu.classList.toggle('is-open');
+    const open = !menu.classList.contains('is-open');
+    menu.classList.toggle('is-open', open);
     toggle.classList.toggle('is-active', open);
     toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute('aria-label', open ? 'Fechar menu' : 'Abrir menu');
     menu.setAttribute('aria-hidden', String(!open));
     header.classList.toggle('menu-open', open);
     document.body.classList.toggle('no-scroll', open);
   });
 
   menu.querySelectorAll('a').forEach((a) => a.addEventListener('click', closeMenu));
+  menu.querySelector('.mobile-menu-backdrop')?.addEventListener('click', closeMenu);
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && menu.classList.contains('is-open')) closeMenu();
+  });
 
   const closeBtn = document.getElementById('mobileMenuClose');
   if (closeBtn) closeBtn.addEventListener('click', closeMenu);
