@@ -18,51 +18,70 @@ async function main() {
   window.eval(build.outputFiles[0].text);
 
   const mount = window.document.querySelector('#mount');
+  const photos = [
+    ...Array.from({ length: 7 }, (_, index) => ({ url: `/quarto-${index}.jpg`, caption: 'Quarto 1 - Empresa e bairro' })),
+    ...Array.from({ length: 3 }, (_, index) => ({ url: `/cozinha-${index}.jpg`, caption: 'Cozinha' })),
+    ...Array.from({ length: 4 }, (_, index) => ({ url: `/sala-${index}.jpg`, caption: 'Sala de estar' })),
+    { url: '/sem-identificacao.jpg', caption: 'Foto sem cômodo' },
+  ];
   let selectedApartment = null;
-  const gallery = window.GalleryTest.createGallery(mount, [
-    { url: '/quarto-1.jpg', caption: 'Quarto 1' },
-    { url: '/quarto-1b.jpg', caption: 'Quarto 1' },
-    { url: '/banheiro.jpg', caption: 'Banheiro social' },
-    { url: '/banheiro-suite.jpg', caption: 'Banheiro da suíte' },
-    { url: '/quarto-2.jpg', caption: 'Suíte' },
-    { url: '/jantar.jpg', caption: 'Sala de jantar' },
-    { url: '/externa.jpg', caption: 'Área externa' },
-    { url: '/varanda-suite.jpg', caption: 'Varanda da suíte' },
-    { url: '/706fdd2f7bbb96cdcbbe2f65edef819d4b3adb5b.jpg', caption: 'Foto 1' },
-    { url: '/560fe27b03e2000000000000000000000000.jpg', caption: 'Foto 2' },
-    { url: '/sem-legenda.jpg' },
-  ], {
-    apartment: { id: 'current', name: 'Empresa e bairro do imóvel', capacity: 4, bedrooms: 2, beds: 3, bathrooms: 1 },
+  const gallery = window.GalleryTest.createGallery(mount, photos, {
+    apartment: { id: 'current', name: 'Imóvel atual' },
     otherApartments: [
-      { id: 'current', name: 'Empresa e bairro do imóvel' },
-      { id: 'other', name: 'Outro imóvel', images: ['/other.jpg'] },
+      { id: 'current', name: 'Imóvel atual' },
+      { id: 'other', name: 'Outro imóvel', capacity: 4, bedrooms: 2, images: ['/other.jpg'] },
+      { id: 'third', name: 'Terceiro imóvel', imageDetails: [{ url: '/third.jpg' }] },
     ],
     onSelectApartment: (item) => { selectedApartment = item; },
   });
+
+  const textarea = window.document.createElement('textarea');
+  mount.appendChild(textarea);
+  textarea.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  assert.equal(mount.querySelector('[data-gallery-main]').getAttribute('src'), '/quarto-0.jpg');
+  mount.querySelector('[data-thumb="1"]').click();
+  assert.equal(mount.querySelector('[data-thumb="1"]').getAttribute('aria-pressed'), 'true');
+  assert.equal(mount.querySelector('[data-thumb="0"]').getAttribute('aria-pressed'), 'false');
   mount.querySelector('[data-gallery-open]').click();
-  assert.equal(window.document.querySelector('.gallery-lightbox-header-title').textContent, 'Fotos do imóvel');
-  assert.equal(window.document.querySelector('.gallery-lightbox-intro h2').textContent, 'Quarto 1');
-  assert.equal(window.document.querySelector('.gallery-related-heading h3').textContent, 'Outros imóveis');
-  assert.equal(window.document.querySelectorAll('.gallery-related-card').length, 1);
-  assert.equal(window.document.querySelectorAll('.gallery-property-meta li').length, 4);
-  const sections = [...window.document.querySelectorAll('.gallery-photo-group')];
-  assert.deepEqual(sections.map((section) => section.querySelector('h3').textContent), [
-    'Quarto 1', 'Suíte 1', 'Banheiro 1', 'Banheiro 2', 'Sala de jantar', 'Área externa', 'Varanda da suíte', 'Varanda', 'Outras fotos',
+  const document = window.document;
+  assert.equal(document.querySelector('.gallery-lightbox-header-title').textContent, 'Galeria do imóvel');
+  assert.equal(document.querySelector('.gallery-lightbox-header-count').textContent, '15 fotos');
+  assert.deepEqual([...document.querySelectorAll('.gallery-photo-group h3')].map((item) => item.textContent), [
+    'Quarto 1', 'Cozinha', 'Sala de estar', 'Outras fotos',
   ]);
-  assert.equal(sections[2].querySelector('.gallery-photo-group-heading p').textContent, 'Banheiro social');
-  assert.deepEqual(sections.map((section) => section.querySelectorAll('img').length), [2, 1, 1, 1, 1, 1, 1, 2, 1]);
-  assert.equal(sections[0].querySelectorAll('img')[1].getAttribute('src'), '/quarto-1b.jpg');
-  assert.equal(sections[7].querySelectorAll('img')[1].getAttribute('src'), '/560fe27b03e2000000000000000000000000.jpg');
-  assert.equal(window.document.querySelector('[data-lightbox-viewer]'), null);
-  assert.equal(window.document.querySelector('.gallery-lightbox').textContent.includes('Empresa e bairro do imóvel'), false);
-  assert.ok(window.document.querySelector('.gallery-lightbox'));
-  window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-  assert.equal(window.document.querySelector('.gallery-lightbox'), null);
-  assert.equal(window.document.body.style.overflow, '');
-  mount.querySelector('[data-gallery-open]').click();
-  window.document.querySelector('[data-related-index="0"]').click();
+  const sections = [...document.querySelectorAll('.gallery-photo-group')];
+  assert.deepEqual(sections.map((section) => section.querySelectorAll('.gallery-photo').length), [5, 3, 4, 1]);
+  assert.equal(sections[0].querySelector('.gallery-photo-grid').classList.contains('has-5'), true);
+  assert.equal(sections[1].querySelector('.gallery-photo-grid').classList.contains('has-3'), true);
+  assert.equal(sections[2].querySelector('.gallery-photo-grid').classList.contains('has-4'), true);
+  assert.equal(sections[3].querySelector('.gallery-photo-grid').classList.contains('has-1'), true);
+  assert.equal(sections[0].querySelectorAll('.gallery-photo-label')[0].textContent, 'Quarto 1');
+  assert.equal(document.querySelector('.gallery-lightbox').textContent.includes('Empresa e bairro'), false);
+  assert.equal(sections[0].querySelectorAll('.gallery-show-all').length, 1);
+  assert.equal(sections[1].querySelectorAll('.gallery-show-all').length, 0);
+
+  sections[0].querySelector('.gallery-show-all').click();
+  assert.equal(document.querySelector('[data-viewer-count]').textContent, '1 / 7');
+  for (let index = 0; index < 6; index++) {
+    document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  }
+  assert.equal(document.querySelector('[data-viewer-count]').textContent, '7 / 7');
+  assert.equal(document.querySelector('[data-viewer-image]').getAttribute('src'), '/quarto-6.jpg');
+  document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  assert.equal(document.querySelector('.gallery-photo-viewer'), null);
+  assert.ok(document.querySelector('.gallery-lightbox'));
+  sections[1].querySelector('.gallery-photo').click();
+  assert.equal(document.querySelector('.gallery-photo-viewer [data-viewer-image]').getAttribute('src'), '/cozinha-0.jpg');
+  document.querySelector('[data-viewer-close]').click();
+  assert.equal(document.querySelector('.gallery-photo-viewer'), null);
+
+  assert.equal(document.querySelector('.gallery-related-heading h3').textContent, 'Outros imóveis');
+  assert.equal(document.querySelectorAll('.gallery-related-card').length, 2);
+  assert.equal(document.querySelector('.gallery-related-card-summary').textContent, '4 hóspedes · 2 quartos');
+  assert.equal(document.querySelectorAll('.gallery-related-card img').length, 2);
+  document.querySelector('[data-related-index="0"]').click();
   assert.equal(selectedApartment.id, 'other');
-  assert.equal(window.document.querySelector('.gallery-lightbox'), null);
+  assert.equal(document.querySelector('.gallery-lightbox'), null);
   gallery.destroy();
 
   const knownRoom = window.GalleryTest.createGallery(mount, [
@@ -70,13 +89,13 @@ async function main() {
     '/46b20a1ffaf2000000000000000000000000.jpg',
   ]);
   mount.querySelector('[data-gallery-open]').click();
-  const identified = window.document.querySelector('.gallery-photo-group');
+  const identified = document.querySelector('.gallery-photo-group');
   assert.equal(identified.querySelector('h3').textContent, 'Quarto 1');
-  assert.equal(identified.querySelector('.gallery-photo-group-heading p').textContent, 'Quarto com beliche e cama vermelha');
-  assert.equal(identified.querySelectorAll('img').length, 2);
+  assert.equal(identified.querySelectorAll('.gallery-photo').length, 2);
+  assert.equal(identified.querySelector('.gallery-photo-grid').classList.contains('has-2'), true);
   knownRoom.destroy();
   dom.window.close();
-  console.log('PASS galeria por cômodo, outros imóveis e fechamento');
+  console.log('PASS galeria por cômodo, mosaico, visualizador e outros imóveis');
 }
 
 main().catch((error) => { console.error(error); process.exitCode = 1; });
