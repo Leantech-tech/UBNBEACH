@@ -21,6 +21,14 @@ func staticHandler(siteDir string) http.Handler {
 			return
 		}
 
+		if strings.HasPrefix(clean, "/assets/") {
+			if r.URL.Query().Has("v") {
+				w.Header().Set("Cache-Control", "public, max-age=2592000, immutable")
+			} else {
+				w.Header().Set("Cache-Control", "public, max-age=86400")
+			}
+		}
+
 		last := path.Base(clean)
 		if !strings.Contains(last, ".") {
 			// Sem extensão: se não existe arquivo físico (ou é um

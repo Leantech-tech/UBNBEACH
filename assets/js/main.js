@@ -410,12 +410,13 @@ function initHeroVideo() {
   video.loop = true;
   video.playsInline = true;
 
+  let ready = false;
   let loaded = false;
   let visible = !('IntersectionObserver' in window);
   let waitingForVideo = false;
 
   const syncPlayback = () => {
-    if (!visible || document.hidden) {
+    if (!ready || !visible || document.hidden) {
       video.pause();
       return;
     }
@@ -457,7 +458,14 @@ function initHeroVideo() {
   }
 
   document.addEventListener('visibilitychange', syncPlayback);
-  syncPlayback();
+  const startWhenIdle = () => {
+    ready = true;
+    syncPlayback();
+  };
+  window.setTimeout(() => {
+    if ('requestIdleCallback' in window) window.requestIdleCallback(startWhenIdle, { timeout: 1200 });
+    else startWhenIdle();
+  }, 400);
 }
 
 /* ============================================================
