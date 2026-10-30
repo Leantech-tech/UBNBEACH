@@ -1,4 +1,5 @@
 import { ICONS, guardImage } from './utils.js';
+import { PHOTO_CATEGORIES } from './photo-categories.js';
 
 const esc = (value) =>
   String(value ?? '')
@@ -15,7 +16,10 @@ const PHOTO_GROUPS = [
   { key: 'living', label: 'Sala', terms: ['sala', 'estar'] },
   { key: 'outside', label: 'Área externa', terms: ['area externa', 'varanda', 'sacada', 'piscina', 'quintal', 'jardim', 'fachada', 'terraco', 'churrasqueira'] },
   { key: 'service', label: 'Área de serviço', terms: ['area de servico', 'lavanderia'] },
+  { key: 'shared', label: 'Áreas comuns', terms: ['area comum', 'areas comuns', 'elevador', 'sala de jogos', 'sauna', 'academia', 'recepcao'] },
+  { key: 'access', label: 'Escadas e acessos', terms: ['escada', 'corredor', 'hall', 'entrada'] },
   { key: 'parking', label: 'Garagem', terms: ['garagem', 'estacionamento'] },
+  { key: 'location', label: 'Localização', terms: ['localizacao', 'mapa', 'praia proxima'] },
   { key: 'other', label: 'Outras fotos', terms: [] },
 ];
 
@@ -29,9 +33,8 @@ function normalizeImages(images) {
     .filter((image) => image.url);
 }
 
-function photoGroup(caption) {
-  if (!caption) return PHOTO_GROUPS.at(-1);
-  const normalized = caption
+function photoGroup(image) {
+  const normalized = image.caption
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLocaleLowerCase('pt-BR')
@@ -42,7 +45,10 @@ function photoGroup(caption) {
     group.terms.map((term) => ({ group, position: searchable.indexOf(` ${term} `), length: term.length }))
   ).filter((match) => match.position >= 0);
   matches.sort((a, b) => a.position - b.position || b.length - a.length);
-  return matches[0]?.group ?? PHOTO_GROUPS.at(-1);
+  if (matches[0]) return matches[0].group;
+  const filename = image.url.match(/([a-f0-9]{12})[a-f0-9]*\.(?:jpe?g|png|webp)/i)?.[1]?.toLowerCase();
+  const key = PHOTO_CATEGORIES[filename];
+  return PHOTO_GROUPS.find((group) => group.key === key) ?? PHOTO_GROUPS.at(-1);
 }
 
 /**
@@ -52,7 +58,7 @@ function photoGroup(caption) {
  *  Componente de galeria com imagem principal, setas, contador,
  *  miniaturas, navegação por teclado, swipe e tela de fotos por ambiente.
  *  A legenda define o ambiente quando contém um termo reconhecível;
- *  sem essa informação, a foto permanece em "Outras fotos".
+ *  fotos publicadas sem legenda podem ter classificação visual explícita.
  *
  *  Comportamento conforme a quantidade de imagens:
  *    - várias imagens → setas, contador e miniaturas;
@@ -67,27 +73,17 @@ function photoGroup(caption) {
  *  @returns {{ show: (i: number) => void, destroy: () => void }}
  * ============================================================
  */
-export function createGallery(mount, images, { alt = 'Foto', ratio } = {}) {
+export function createGallery(mount, images, { alt = 'Foto', title = 'Imóvel', ratio } = {}) {
   const normalized = normalizeImages(images);
   const list = normalized.length ? normalized : [{ url: '', caption: '' }];
   const hasPhotos = normalized.length > 0;
   const multiple = list.length > 1;
 
-  // Precarrega todas as fotos para troca instantânea sem piscadas
-  if (multiple) {
-    list.forEach(({ url }) => {
-      if (url) {
-        const img = new Image();
-        img.src = url;
-      }
-    });
-  }
-
   mount.innerHTML = `
     <figure class="gallery-main${multiple ? '' : ' is-single'}">
-      <button type="button" class="gallery-open" data-gallery-open aria-label="Ampliar foto" ${hasPhotos ? '' : 'disabled'}>
+      <button type="button" class="gallery-open" data-gallery-open aria-label="Ver todas as fotos do imóvel" ${hasPhotos ? '' : 'disabled'}>
         <img data-gallery-main alt="${esc(alt)}" decoding="async" />
-        ${hasPhotos ? '<span class="gallery-expand-label">Ampliar</span>' : ''}
+        ${hasPhotos ? '<span class="gallery-expand-label">Ver fotos</span>' : ''}
       </button>
       ${
         multiple
@@ -131,8 +127,8 @@ export function createGallery(mount, images, { alt = 'Foto', ratio } = {}) {
     thumbs.forEach((t, ti) => t.classList.toggle('is-active', ti === index));
   };
 
-  // Troca imediata: as fotos já foram precarregadas no mount, então o
-  // navegador as tem em cache e a troca acontece no mesmo clique.
+  // Carrega apenas a foto escolhida. Miniaturas e fotos da galeria
+  // ampliada usam lazy loading para evitar baixar a galeria inteira.
   const show = (i) => {
     if (!multiple) return;
     const targetIndex = (i + list.length) % list.length;
@@ -148,43 +144,10 @@ export function createGallery(mount, images, { alt = 'Foto', ratio } = {}) {
   thumbs.forEach((t) => t.addEventListener('click', () => show(Number(t.dataset.thumb))));
 
   let lightbox = null;
-  let lightboxIndex = 0;
-  let returnFocus = null;
   const grouped = PHOTO_GROUPS.map((group) => ({
     ...group,
-    images: list.filter((image) => photoGroup(image.caption).key === group.key),
+    images: list.filter((image) => photoGroup(image).key === group.key),
   })).filter((group) => group.images.length);
-  const ordered = grouped.flatMap((group) => group.images);
-
-  const updateLightbox = (nextIndex) => {
-    if (!lightbox || !ordered.length) return;
-    lightboxIndex = (nextIndex + ordered.length) % ordered.length;
-    const image = ordered[lightboxIndex];
-    const stage = lightbox.querySelector('[data-lightbox-image]');
-    const caption = lightbox.querySelector('[data-lightbox-caption]');
-    const counter = lightbox.querySelector('[data-lightbox-count]');
-    stage.src = image.url;
-    stage.alt = image.caption ? `${alt}: ${image.caption}` : `${alt} ${lightboxIndex + 1}`;
-    caption.textContent = image.caption || photoGroup(image.caption).label;
-    counter.textContent = `${lightboxIndex + 1} / ${ordered.length}`;
-    const originalIndex = list.indexOf(image);
-    if (originalIndex >= 0) apply(originalIndex);
-  };
-
-  const closeViewer = () => {
-    if (!lightbox) return;
-    lightbox.querySelector('[data-lightbox-viewer]').hidden = true;
-    returnFocus?.focus({ preventScroll: true });
-    returnFocus = null;
-  };
-
-  const openViewer = (nextIndex, trigger) => {
-    if (!lightbox) return;
-    returnFocus = trigger;
-    updateLightbox(nextIndex);
-    lightbox.querySelector('[data-lightbox-viewer]').hidden = false;
-    lightbox.querySelector('[data-viewer-close]').focus({ preventScroll: true });
-  };
 
   const closeLightbox = () => {
     if (!lightbox) return;
@@ -192,7 +155,6 @@ export function createGallery(mount, images, { alt = 'Foto', ratio } = {}) {
     lightbox = null;
     document.removeEventListener('keydown', onLightboxKey, true);
     document.body.style.overflow = previousOverflow;
-    returnFocus = null;
     mount.querySelector('[data-gallery-open]')?.focus({ preventScroll: true });
   };
 
@@ -201,12 +163,10 @@ export function createGallery(mount, images, { alt = 'Foto', ratio } = {}) {
   const onLightboxKey = (event) => {
     if (!lightbox) return;
     if (event.key === 'Tab') {
-      const viewer = lightbox.querySelector('[data-lightbox-viewer]');
-      const active = viewer.hidden ? lightbox : viewer;
-      const buttons = [...active.querySelectorAll('button')].filter((button) => !button.closest('[hidden]'));
+      const buttons = [...lightbox.querySelectorAll('button, a[href]')];
       const first = buttons[0];
       const last = buttons.at(-1);
-      if (first && (!active.contains(document.activeElement) || (event.shiftKey && document.activeElement === first))) {
+      if (first && (!lightbox.contains(document.activeElement) || (event.shiftKey && document.activeElement === first))) {
         event.preventDefault();
         (event.shiftKey ? last : first).focus();
       } else if (last && !event.shiftKey && document.activeElement === last) {
@@ -218,14 +178,8 @@ export function createGallery(mount, images, { alt = 'Foto', ratio } = {}) {
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopImmediatePropagation();
-      if (lightbox.querySelector('[data-lightbox-viewer]').hidden) closeLightbox();
-      else closeViewer();
+      closeLightbox();
       return;
-    }
-    if (!lightbox.querySelector('[data-lightbox-viewer]').hidden && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      updateLightbox(lightboxIndex + (event.key === 'ArrowRight' ? 1 : -1));
     }
   };
 
@@ -239,63 +193,49 @@ export function createGallery(mount, images, { alt = 'Foto', ratio } = {}) {
     lightbox.innerHTML = `
       <div class="gallery-lightbox-panel">
         <header class="gallery-lightbox-header">
-          <div class="gallery-lightbox-heading">
-            <span class="gallery-lightbox-eyebrow">Conheça cada ambiente</span>
-            <h2>Fotos do imóvel</h2>
-            <p>${ordered.length} ${ordered.length === 1 ? 'foto' : 'fotos'} organizadas por ambiente</p>
-          </div>
-          <button type="button" class="gallery-lightbox-close" data-lightbox-close aria-label="Voltar aos detalhes do imóvel">×</button>
+          <button type="button" class="gallery-lightbox-close" data-lightbox-close aria-label="Voltar aos detalhes do imóvel">${ICONS.arrowLeft}<span>Voltar</span></button>
+          <span class="gallery-lightbox-header-title">Fotos de ${esc(title)}</span>
+          <span class="gallery-lightbox-header-count">${list.length} ${list.length === 1 ? 'foto' : 'fotos'}</span>
         </header>
         <main class="gallery-lightbox-content" aria-label="Fotos organizadas por ambiente">
+          <div class="gallery-lightbox-intro">
+            <span class="gallery-lightbox-eyebrow">GALERIA DO IMÓVEL</span>
+            <h2>Explore cada ambiente</h2>
+            <p>${esc(title)} · ${list.length} ${list.length === 1 ? 'foto' : 'fotos'}</p>
+          </div>
+          <nav class="gallery-lightbox-nav" aria-label="Ir para um ambiente">
+            ${grouped.map((group) => `<button type="button" data-gallery-jump="${group.key}">${group.label}</button>`).join('')}
+          </nav>
           ${grouped
             .map(
-              (group) => `<section class="gallery-photo-group" aria-label="${group.label}">
+              (group) => `<section class="gallery-photo-group" id="gallery-${group.key}" aria-label="${group.label}">
                 <div class="gallery-photo-group-head">
                   <h3>${group.label}</h3>
                   <span>${group.images.length} ${group.images.length === 1 ? 'foto' : 'fotos'}</span>
                 </div>
                 <div class="gallery-photo-grid">
                   ${group.images
-                    .map((image) => {
-                      const orderedIndex = ordered.indexOf(image);
-                      return `<button type="button" data-lightbox-thumb="${orderedIndex}" aria-label="Ampliar ${esc(image.caption || `foto ${orderedIndex + 1} de ${group.label}`)}">
-                        <img src="${esc(image.url)}" alt="" loading="lazy" decoding="async" />
-                      </button>`;
-                    })
+                    .map((image, photoIndex) => `<figure class="gallery-photo">
+                      <img src="${esc(image.url)}" alt="${esc(image.caption || `${group.label}, foto ${photoIndex + 1}`)}" loading="lazy" decoding="async" />
+                    </figure>`)
                     .join('')}
                 </div>
               </section>`
             )
             .join('')}
         </main>
-        <div class="gallery-lightbox-viewer" data-lightbox-viewer hidden role="dialog" aria-modal="true" aria-label="Foto ampliada">
-          <div class="gallery-viewer-toolbar">
-            <span data-lightbox-count></span>
-            <button type="button" data-viewer-close aria-label="Voltar às fotos">×</button>
-          </div>
-          <div class="gallery-lightbox-stage">
-            <img data-lightbox-image alt="" />
-            ${ordered.length > 1 ? `<button type="button" class="gallery-lightbox-arrow prev" data-lightbox-prev aria-label="Foto anterior">${ICONS.arrowLeft}</button>
-              <button type="button" class="gallery-lightbox-arrow next" data-lightbox-next aria-label="Próxima foto">${ICONS.arrowRight}</button>` : ''}
-          </div>
-          <p class="gallery-viewer-caption" data-lightbox-caption></p>
-        </div>
       </div>`;
     previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     document.body.appendChild(lightbox);
     lightbox.querySelectorAll('img').forEach(guardImage);
     lightbox.querySelector('[data-lightbox-close]').addEventListener('click', closeLightbox);
-    lightbox.querySelector('[data-viewer-close]').addEventListener('click', closeViewer);
-    lightbox.querySelector('[data-lightbox-prev]')?.addEventListener('click', () => updateLightbox(lightboxIndex - 1));
-    lightbox.querySelector('[data-lightbox-next]')?.addEventListener('click', () => updateLightbox(lightboxIndex + 1));
-    lightbox.querySelectorAll('[data-lightbox-thumb]').forEach((button) => {
-      button.addEventListener('click', () => openViewer(Number(button.dataset.lightboxThumb), button));
+    lightbox.querySelectorAll('[data-gallery-jump]').forEach((button) => {
+      button.addEventListener('click', () => {
+        lightbox.querySelector(`#gallery-${button.dataset.galleryJump}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
     });
     document.addEventListener('keydown', onLightboxKey, true);
-    const currentImage = list[index];
-    const currentThumb = lightbox.querySelector(`[data-lightbox-thumb="${Math.max(0, ordered.indexOf(currentImage))}"]`);
-    currentThumb?.scrollIntoView({ block: 'center' });
     lightbox.querySelector('[data-lightbox-close]').focus({ preventScroll: true });
   };
 

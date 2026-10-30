@@ -116,7 +116,7 @@ function apartmentCard(apartment, index) {
   return `
     <article class="apt-card reveal" data-delay="${(index % 3) * 100}" data-apartment="${apartment.id}">
       <button type="button" class="apt-media" data-action="details" aria-label="Ver detalhes do ${apartment.name}">
-        <img src="${cover}" alt="Foto do ${apartment.name}" loading="lazy" decoding="async" />
+        <img src="${cover}" alt="Foto do ${apartment.name}" loading="lazy" decoding="async" fetchpriority="low" />
       </button>
 
       <div class="apt-body">
@@ -208,8 +208,23 @@ function initApartmentFilters() {
   const form = document.getElementById('aptFilters');
   if (!form || isPromoRoute()) return;
 
+  refreshApartmentFilterOptions();
+
+  const update = () => renderApartments(applyApartmentFilters());
+  form.addEventListener('input', update);
+  form.addEventListener('change', update);
+  form.addEventListener('reset', () => setTimeout(update));
+}
+
+function refreshApartmentFilterOptions() {
   const guestsEl = document.getElementById('aptFilterGuests');
   const locationEl = document.getElementById('aptFilterLocation');
+  if (!guestsEl || !locationEl) return;
+
+  const selectedGuests = guestsEl.value;
+  const selectedLocation = locationEl.value;
+  guestsEl.innerHTML = '<option value="">Todas</option>';
+  locationEl.innerHTML = '<option value="">Todos</option>';
 
   const capacities = [...new Set(APARTMENTS.map((a) => a.capacity).filter(Number.isFinite))].sort((x, y) => x - y);
   capacities.forEach((c) => {
@@ -226,10 +241,8 @@ function initApartmentFilters() {
     locationEl.appendChild(opt);
   });
 
-  const update = () => renderApartments(applyApartmentFilters());
-  form.addEventListener('input', update);
-  form.addEventListener('change', update);
-  form.addEventListener('reset', () => setTimeout(update));
+  if (capacities.some((capacity) => String(capacity) === selectedGuests)) guestsEl.value = selectedGuests;
+  if ([...locationEl.options].some((option) => option.value === selectedLocation)) locationEl.value = selectedLocation;
 }
 
 /* ============================================================
@@ -368,6 +381,81 @@ function initHeroTitle() {
 }
 
 /* ============================================================
+ *  Vídeo do hero sob demanda
+ * ------------------------------------------------------------
+ *  Mantém o pôster visível durante o carregamento inicial. Só busca
+ *  o vídeo depois da primeira carga, quando a seção está visível e
+ *  o dispositivo não pediu menos movimento ou economia de dados.
+ * ============================================================ */
+function initHeroVideo() {
+  const video = document.querySelector('.hero-bg video');
+  const source = video?.querySelector('source[data-src]');
+  if (!video || !source) return;
+
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  if (connection?.saveData || /^(slow-2g|2g)$/.test(connection?.effectiveType ?? '')) return;
+
+  let ready = false;
+  let loaded = false;
+  let visible = !('IntersectionObserver' in window);
+  let waitingForVideo = false;
+
+  const syncPlayback = () => {
+    if (!ready || !visible || document.hidden) {
+      video.pause();
+      return;
+    }
+
+    if (!loaded) {
+      loaded = true;
+      source.src = source.dataset.src;
+      source.removeAttribute('data-src');
+      video.load();
+    }
+
+    if (video.readyState >= 2) {
+      video.play().catch(() => {});
+      return;
+    }
+
+    if (!waitingForVideo) {
+      waitingForVideo = true;
+      video.addEventListener(
+        'canplay',
+        () => {
+          waitingForVideo = false;
+          syncPlayback();
+        },
+        { once: true }
+      );
+    }
+  };
+
+  if ('IntersectionObserver' in window) {
+    const observer = new IntersectionObserver((entries) => {
+      visible = entries.some((entry) => entry.isIntersecting);
+      syncPlayback();
+    }, { threshold: 0.01 });
+    observer.observe(video);
+  }
+
+  document.addEventListener('visibilitychange', syncPlayback);
+
+  const scheduleVideo = () => {
+    const startWhenIdle = () => {
+      ready = true;
+      syncPlayback();
+    };
+    if ('requestIdleCallback' in window) window.requestIdleCallback(startWhenIdle, { timeout: 2500 });
+    else window.setTimeout(startWhenIdle, 1400);
+  };
+
+  if (document.readyState === 'complete') scheduleVideo();
+  else window.addEventListener('load', scheduleVideo, { once: true });
+}
+
+/* ============================================================
  *  Modo propaganda (rota /detalhes)
  * ------------------------------------------------------------
  *  Em site.com/detalhes o site vira a página de apresentação da
@@ -427,6 +515,7 @@ function init() {
   initNavigation();
   initReveals();
   initHeroTitle();
+  initHeroVideo();
 
   const year = document.getElementById('currentYear');
   if (year) year.textContent = String(new Date().getFullYear());
@@ -438,7 +527,15 @@ if (document.readyState === 'loading') {
   start();
 }
 
-async function start() {
-  await Promise.all([loadApartments(), loadCompany(), loadPoints()]);
+function start() {
   init();
+
+  void loadApartments()
+    .then(() => {
+      refreshApartmentFilterOptions();
+      renderApartments(applyApartmentFilters());
+    })
+    .catch(() => {});
+  void loadCompany().then(bindConfig).catch(() => {});
+  void loadPoints().catch(() => {});
 }

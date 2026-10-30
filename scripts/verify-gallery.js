@@ -15,7 +15,8 @@ async function main() {
     pretendToBeVisual: true,
   });
   const { window } = dom;
-  window.HTMLElement.prototype.scrollIntoView = function () {};
+  let scrolledTo = '';
+  window.HTMLElement.prototype.scrollIntoView = function () { scrolledTo = this.id; };
   window.eval(build.outputFiles[0].text);
 
   const mount = window.document.querySelector('#mount');
@@ -27,6 +28,7 @@ async function main() {
     { url: '/jantar.jpg', caption: 'Sala de jantar' },
     { url: '/externa.jpg', caption: 'Área externa' },
     { url: '/varanda-suite.jpg', caption: 'Varanda da suíte' },
+    { url: '/706fdd2f7bbb96cdcbbe2f65edef819d4b3adb5b.jpg', caption: 'Foto 1' },
     { url: '/sem-legenda.jpg' },
   ]);
   mount.querySelector('[data-gallery-open]').click();
@@ -34,20 +36,12 @@ async function main() {
   assert.deepEqual(sections.map((section) => section.querySelector('h3').textContent), [
     'Quartos', 'Banheiros', 'Sala de jantar', 'Área externa', 'Outras fotos',
   ]);
-  assert.deepEqual(sections.map((section) => section.querySelectorAll('button').length), [2, 2, 1, 2, 1]);
-  assert.equal(sections[1].querySelectorAll('button')[1].querySelector('img').getAttribute('src'), '/banheiro-suite.jpg');
-  assert.equal(sections[3].querySelectorAll('button')[1].querySelector('img').getAttribute('src'), '/varanda-suite.jpg');
-
-  const bedroom = sections[0].querySelector('button');
-  bedroom.click();
-  assert.equal(window.document.querySelector('[data-lightbox-viewer]').hidden, false);
-  window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
-  assert.equal(window.document.activeElement, window.document.querySelector('[data-lightbox-next]'));
-  assert.equal(window.document.querySelector('[data-lightbox-image]').getAttribute('src'), '/quarto-1.jpg');
-  window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
-  assert.equal(window.document.querySelector('[data-lightbox-image]').getAttribute('src'), '/quarto-2.jpg');
-  window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-  assert.equal(window.document.querySelector('[data-lightbox-viewer]').hidden, true);
+  assert.deepEqual(sections.map((section) => section.querySelectorAll('img').length), [2, 2, 1, 3, 1]);
+  assert.equal(sections[1].querySelectorAll('img')[1].getAttribute('src'), '/banheiro-suite.jpg');
+  assert.equal(sections[3].querySelectorAll('img')[1].getAttribute('src'), '/varanda-suite.jpg');
+  assert.equal(window.document.querySelector('[data-lightbox-viewer]'), null);
+  window.document.querySelector('[data-gallery-jump="bathrooms"]').click();
+  assert.equal(scrolledTo, 'gallery-bathrooms');
   assert.ok(window.document.querySelector('.gallery-lightbox'));
   window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   assert.equal(window.document.querySelector('.gallery-lightbox'), null);

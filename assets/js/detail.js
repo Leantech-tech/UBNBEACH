@@ -195,6 +195,7 @@ export function openApartmentDetail(apartment) {
   /* ---------- Galeria ---------- */
   const gallery = createGallery(modal.body.querySelector('[data-gallery-mount]'), images, {
     alt: `Foto do ${apartment.name}`,
+    title: apartment.name,
   });
   renderNearby(modal.body.querySelector('[data-nearby-mount]'), apartment);
 

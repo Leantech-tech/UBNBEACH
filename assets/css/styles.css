@@ -1334,93 +1334,66 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
-  padding: 1.1rem max(1.5rem, calc((100vw - 1120px) / 2));
+  min-height: 74px;
+  padding: 0.9rem max(1.5rem, calc((100vw - 1120px) / 2));
   border-bottom: 1px solid rgba(20, 45, 48, 0.1);
   background: rgba(255, 255, 255, 0.97);
   backdrop-filter: blur(12px);
 }
-.gallery-lightbox-eyebrow { color: var(--gold-strong); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
-.gallery-lightbox-heading h2 { margin: 0.12rem 0; font-size: clamp(1.35rem, 2vw, 1.9rem); }
-.gallery-lightbox-heading p { margin: 0; color: var(--muted); font-size: 0.88rem; }
-.gallery-lightbox-close,
-.gallery-viewer-toolbar button {
+.gallery-lightbox-header-title { font-weight: 700; font-size: 0.98rem; }
+.gallery-lightbox-header-count { color: var(--muted); font-size: 0.88rem; }
+.gallery-lightbox-close {
   flex: none;
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border: 1px solid rgba(20, 45, 48, 0.16);
-  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid rgba(20, 45, 48, 0.14);
+  border-radius: 999px;
   background: #fff;
   color: var(--ink);
-  font-size: 1.65rem;
-  line-height: 1;
+  font-size: 0.88rem;
+  font-weight: 700;
   cursor: pointer;
 }
-.gallery-lightbox-content { width: min(1120px, calc(100% - 3rem)); margin: 0 auto; padding: 2.25rem 0 5rem; }
+.gallery-lightbox-close svg { width: 1rem; height: 1rem; }
+.gallery-lightbox-close:hover { background: var(--bg-soft); }
+.gallery-lightbox-content { width: min(1120px, calc(100% - 3rem)); margin: 0 auto; padding: 3.25rem 0 6rem; }
+.gallery-lightbox-intro { margin-bottom: 1.55rem; }
+.gallery-lightbox-eyebrow { color: var(--gold-strong); font-size: 0.73rem; font-weight: 700; letter-spacing: 0.16em; }
+.gallery-lightbox-intro h2 { margin: 0.3rem 0 0.2rem; font-size: clamp(2rem, 4vw, 3rem); line-height: 1.1; }
+.gallery-lightbox-intro p { margin: 0; color: var(--muted); }
+.gallery-lightbox-nav { display: flex; flex-wrap: wrap; gap: 0.55rem; margin-bottom: 3rem; }
+.gallery-lightbox-nav button { padding: 0.65rem 1rem; border: 1px solid rgba(20, 45, 48, 0.16); border-radius: 999px; background: #fff; color: var(--ink); font: inherit; font-size: 0.87rem; font-weight: 600; cursor: pointer; }
+.gallery-lightbox-nav button:hover { background: var(--bg-soft); border-color: var(--accent); }
+.gallery-photo-group { scroll-margin-top: 110px; }
 .gallery-photo-group + .gallery-photo-group { margin-top: 3rem; padding-top: 2.5rem; border-top: 1px solid rgba(20, 45, 48, 0.12); }
 .gallery-photo-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 1.1rem; }
 .gallery-photo-group-head h3 { margin: 0; font-size: clamp(1.35rem, 2.5vw, 1.85rem); }
 .gallery-photo-group-head span { color: var(--muted); font-size: 0.85rem; white-space: nowrap; }
 .gallery-photo-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem; }
-.gallery-photo-grid button {
+.gallery-photo-grid .gallery-photo {
   display: block;
   aspect-ratio: 4 / 3;
-  padding: 0;
+  margin: 0;
   overflow: hidden;
-  border: 0;
   border-radius: 12px;
   background: var(--bg-soft);
-  cursor: zoom-in;
 }
 .gallery-photo-grid img { width: 100%; height: 100%; object-fit: cover; transition: transform 220ms ease; }
-.gallery-photo-grid button:hover img { transform: scale(1.035); }
-.gallery-photo-grid button:focus-visible,
+.gallery-photo-grid .gallery-photo:hover img { transform: scale(1.02); }
+.gallery-lightbox-nav button:focus-visible,
 .gallery-lightbox-close:focus-visible,
-.gallery-viewer-toolbar button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
-.gallery-lightbox-viewer {
-  position: fixed;
-  inset: 0;
-  z-index: 3;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  background: #0d171a;
-  color: #fff;
-}
-.gallery-lightbox-viewer[hidden] { display: none; }
-.gallery-viewer-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 0.8rem 1.5rem; }
-.gallery-viewer-toolbar button { border-color: rgba(255, 255, 255, 0.3); background: #243034; color: #fff; }
-.gallery-lightbox-stage { position: relative; display: grid; place-items: center; min-height: 0; padding: 0 5rem; }
-.gallery-lightbox-stage > img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
-.gallery-viewer-caption { min-height: 3.5rem; margin: 0; padding: 0.8rem 1.5rem 1.3rem; text-align: center; color: rgba(255, 255, 255, 0.82); }
-.gallery-lightbox-arrow {
-  position: absolute;
-  top: 50%;
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  transform: translateY(-50%);
-  border: 0;
-  border-radius: 50%;
-  background: #fff;
-  color: var(--ink);
-  cursor: pointer;
-}
-.gallery-lightbox-arrow.prev { left: 1.5rem; }
-.gallery-lightbox-arrow.next { right: 1.5rem; }
-.gallery-lightbox-arrow svg { width: 1.1rem; height: 1.1rem; }
+.gallery-photo:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 @media (max-width: 760px) {
   .gallery-lightbox-header { padding: 0.85rem 1rem; }
-  .gallery-lightbox-heading p { font-size: 0.78rem; }
+  .gallery-lightbox-header-title { display: none; }
+  .gallery-lightbox-header-count { font-size: 0.78rem; }
   .gallery-lightbox-content { width: calc(100% - 2rem); padding-top: 1.5rem; }
+  .gallery-lightbox-nav { margin-bottom: 2rem; }
   .gallery-photo-group + .gallery-photo-group { margin-top: 2rem; padding-top: 2rem; }
   .gallery-photo-grid { grid-template-columns: 1fr; gap: 0.75rem; }
-  .gallery-photo-grid button { aspect-ratio: 4 / 3; }
-  .gallery-lightbox-stage { padding: 0 0.3rem; }
-  .gallery-lightbox-arrow.prev { left: 0.8rem; }
-  .gallery-lightbox-arrow.next { right: 0.8rem; }
-  .gallery-viewer-toolbar { padding: 0.7rem 1rem; }
+  .gallery-photo-grid .gallery-photo { aspect-ratio: 4 / 3; }
 }
 
 .detail-info { min-width: 0; }
