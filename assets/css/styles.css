@@ -1317,12 +1317,12 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .gallery-thumbs button.is-active { border-color: var(--accent); opacity: 1; }
 .gallery-thumbs button:hover { opacity: 1; }
 
-/* Galeria em tela cheia: ambientes empilhados e fotos amplas. */
+/* Galeria em tela cheia: cada cômodo em um bloco vertical. */
 .gallery-lightbox {
   position: fixed;
   inset: 0;
   z-index: 500;
-  background: #fff;
+  background: #f5f6f3;
   color: var(--ink);
 }
 .gallery-lightbox-panel { height: 100%; overflow-y: auto; overscroll-behavior: contain; }
@@ -1336,9 +1336,9 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   gap: 1.5rem;
   min-height: 74px;
   padding: 0.9rem max(1.5rem, calc((100vw - 1120px) / 2));
-  border-bottom: 1px solid rgba(20, 45, 48, 0.1);
-  background: rgba(255, 255, 255, 0.97);
-  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(20, 45, 48, 0.09);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
 }
 .gallery-lightbox-header-title { font-weight: 700; font-size: 0.98rem; }
 .gallery-lightbox-header-count { color: var(--muted); font-size: 0.88rem; }
@@ -1358,42 +1358,45 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 }
 .gallery-lightbox-close svg { width: 1rem; height: 1rem; }
 .gallery-lightbox-close:hover { background: var(--bg-soft); }
-.gallery-lightbox-content { width: min(1120px, calc(100% - 3rem)); margin: 0 auto; padding: 3.25rem 0 6rem; }
-.gallery-lightbox-intro { margin-bottom: 1.55rem; }
+.gallery-lightbox-content { width: min(1080px, calc(100% - 3rem)); margin: 0 auto; padding: 3.5rem 0 6rem; }
+.gallery-lightbox-intro { margin-bottom: 1.75rem; }
 .gallery-lightbox-eyebrow { color: var(--gold-strong); font-size: 0.73rem; font-weight: 700; letter-spacing: 0.16em; }
-.gallery-lightbox-intro h2 { margin: 0.3rem 0 0.2rem; font-size: clamp(2rem, 4vw, 3rem); line-height: 1.1; }
+.gallery-lightbox-intro h2 { margin: 0.4rem 0 0.45rem; font-size: clamp(2.25rem, 4vw, 3.35rem); line-height: 1.08; }
 .gallery-lightbox-intro p { margin: 0; color: var(--muted); }
-.gallery-lightbox-nav { display: flex; flex-wrap: wrap; gap: 0.55rem; margin-bottom: 3rem; }
-.gallery-lightbox-nav button { padding: 0.65rem 1rem; border: 1px solid rgba(20, 45, 48, 0.16); border-radius: 999px; background: #fff; color: var(--ink); font: inherit; font-size: 0.87rem; font-weight: 600; cursor: pointer; }
-.gallery-lightbox-nav button:hover { background: var(--bg-soft); border-color: var(--accent); }
-.gallery-photo-group { scroll-margin-top: 110px; }
-.gallery-photo-group + .gallery-photo-group { margin-top: 3rem; padding-top: 2.5rem; border-top: 1px solid rgba(20, 45, 48, 0.12); }
-.gallery-photo-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 1.1rem; }
-.gallery-photo-group-head h3 { margin: 0; font-size: clamp(1.35rem, 2.5vw, 1.85rem); }
-.gallery-photo-group-head span { color: var(--muted); font-size: 0.85rem; white-space: nowrap; }
-.gallery-photo-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem; }
+.gallery-lightbox-nav { display: flex; gap: 0.6rem; overflow-x: auto; padding: 0 0 1rem; margin: 0 0 1.8rem; scrollbar-width: thin; }
+.gallery-lightbox-nav button { flex: none; padding: 0.7rem 1.05rem; border: 1px solid #d7e0da; border-radius: 999px; background: #fff; color: var(--ink); font: inherit; font-size: 0.87rem; font-weight: 600; cursor: pointer; transition: background 180ms ease, border-color 180ms ease, transform 180ms ease; }
+.gallery-lightbox-nav button:hover { background: #e6efeb; border-color: var(--accent); transform: translateY(-2px); }
+.gallery-photo-group { scroll-margin-top: 100px; padding: clamp(1rem, 3vw, 2rem); border: 1px solid #dfe6df; border-radius: 22px; background: #fff; box-shadow: 0 10px 32px rgba(18, 51, 59, 0.045); }
+.gallery-photo-group + .gallery-photo-group { margin-top: 1.5rem; }
+.gallery-photo-group-head { display: flex; align-items: center; gap: 0.9rem; margin-bottom: 1.2rem; }
+.gallery-photo-group-head h3 { flex: 1; margin: 0; font-size: clamp(1.35rem, 2.5vw, 1.85rem); line-height: 1.2; }
+.gallery-photo-group-index { display: grid; place-items: center; flex: none; width: 2.7rem; height: 2.7rem; border-radius: 12px; background: #e7efeb; color: var(--accent-strong); font-size: 0.82rem; font-weight: 700; }
+.gallery-photo-group-count { color: var(--muted); font-size: 0.85rem; white-space: nowrap; }
+.gallery-photo-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.85rem; }
 .gallery-photo-grid .gallery-photo {
   display: block;
-  aspect-ratio: 4 / 3;
   margin: 0;
   overflow: hidden;
-  border-radius: 12px;
-  background: var(--bg-soft);
+  border: 1px solid #edf0ed;
+  border-radius: 14px;
+  background: #f3f5f2;
 }
-.gallery-photo-grid img { width: 100%; height: 100%; object-fit: cover; transition: transform 220ms ease; }
-.gallery-photo-grid .gallery-photo:hover img { transform: scale(1.02); }
+.gallery-photo-grid .gallery-photo:only-child { grid-column: 1 / -1; }
+.gallery-photo-grid img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; }
+.gallery-photo-grid .gallery-photo:only-child img { aspect-ratio: 16 / 9; }
+.gallery-photo-grid figcaption { padding: 0.55rem 0.8rem; color: var(--muted); font-size: 0.78rem; }
 .gallery-lightbox-nav button:focus-visible,
-.gallery-lightbox-close:focus-visible,
-.gallery-photo:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.gallery-lightbox-close:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 @media (max-width: 760px) {
   .gallery-lightbox-header { padding: 0.85rem 1rem; }
   .gallery-lightbox-header-title { display: none; }
   .gallery-lightbox-header-count { font-size: 0.78rem; }
   .gallery-lightbox-content { width: calc(100% - 2rem); padding-top: 1.5rem; }
-  .gallery-lightbox-nav { margin-bottom: 2rem; }
-  .gallery-photo-group + .gallery-photo-group { margin-top: 2rem; padding-top: 2rem; }
-  .gallery-photo-grid { grid-template-columns: 1fr; gap: 0.75rem; }
-  .gallery-photo-grid .gallery-photo { aspect-ratio: 4 / 3; }
+  .gallery-photo-group + .gallery-photo-group { margin-top: 1rem; }
+  .gallery-photo-group-head { flex-wrap: wrap; gap: 0.65rem; }
+  .gallery-photo-group-count { width: 100%; padding-left: 3.35rem; }
+  .gallery-photo-grid { grid-template-columns: 1fr; gap: 0.7rem; }
+  .gallery-photo-grid .gallery-photo:only-child img { aspect-ratio: 4 / 3; }
 }
 
 .detail-info { min-width: 0; }

@@ -1,5 +1,6 @@
 import { ICONS, guardImage } from './utils.js';
 import { PHOTO_CATEGORIES } from './photo-categories.js';
+import { PHOTO_ROOMS } from './photo-rooms.js';
 
 const esc = (value) =>
   String(value ?? '')
@@ -46,9 +47,46 @@ function photoGroup(image) {
   ).filter((match) => match.position >= 0);
   matches.sort((a, b) => a.position - b.position || b.length - a.length);
   if (matches[0]) return matches[0].group;
-  const filename = image.url.match(/([a-f0-9]{12})[a-f0-9]*\.(?:jpe?g|png|webp)/i)?.[1]?.toLowerCase();
+  const filename = photoFileKey(image.url);
   const key = PHOTO_CATEGORIES[filename];
   return PHOTO_GROUPS.find((group) => group.key === key) ?? PHOTO_GROUPS.at(-1);
+}
+
+function photoFileKey(url) {
+  return url.match(/([a-f0-9]{12})[a-f0-9]*\.(?:jpe?g|png|webp)/i)?.[1]?.toLowerCase();
+}
+
+function roomFromCaption(image, category) {
+  const normalized = image.caption.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const match = normalized.match(/\b(quarto|dormitorio|suite|banheiro|lavabo)\s*(?:n[º°.]?\s*)?(\d+)\b/);
+  if (match) {
+    const type = match[1] === 'dormitorio' ? 'Quarto' : match[1] === 'suite' ? 'Suíte' : match[1] === 'lavabo' ? 'Lavabo' : match[1] === 'banheiro' ? 'Banheiro' : 'Quarto';
+    return { key: `caption-${category.key}-${match[1]}-${match[2]}`, label: `${type} ${match[2]}` };
+  }
+  const recognizable = category.terms.some((term) => normalized.includes(term));
+  if (!recognizable) return null;
+  const label = image.caption.trim();
+  const generic = new Set(['quarto', 'quartos', 'suite', 'banheiro', 'banheiros', 'cozinha', 'sala', 'sala de jantar', 'area externa', 'varanda', 'garagem']);
+  if (generic.has(normalized.trim())) return { label };
+  return { key: `caption-${category.key}-${normalized.replace(/[^a-z0-9]+/g, '-')}`, label };
+}
+
+function groupByRoom(images) {
+  const rooms = new Map();
+  images.forEach((image, index) => {
+    const category = photoGroup(image);
+    const fileKey = photoFileKey(image.url);
+    const captionRoom = roomFromCaption(image, category);
+    const visualRoom = fileKey && (!image.caption || PHOTO_CATEGORIES[fileKey] === category.key) ? PHOTO_ROOMS[fileKey] : null;
+    const room = captionRoom || visualRoom;
+    const key = room?.key || `photo-${index}`;
+    if (!rooms.has(key)) rooms.set(key, { key, label: room?.label || category.label, category: category.key, firstIndex: index, images: [] });
+    rooms.get(key).images.push(image);
+  });
+  return [...rooms.values()].sort((a, b) =>
+    PHOTO_GROUPS.findIndex((group) => group.key === a.category) - PHOTO_GROUPS.findIndex((group) => group.key === b.category)
+    || a.firstIndex - b.firstIndex
+  );
 }
 
 /**
@@ -144,10 +182,7 @@ export function createGallery(mount, images, { alt = 'Foto', title = 'Imóvel', 
   thumbs.forEach((t) => t.addEventListener('click', () => show(Number(t.dataset.thumb))));
 
   let lightbox = null;
-  const grouped = PHOTO_GROUPS.map((group) => ({
-    ...group,
-    images: list.filter((image) => photoGroup(image).key === group.key),
-  })).filter((group) => group.images.length);
+  const grouped = groupByRoom(list);
 
   const closeLightbox = () => {
     if (!lightbox) return;
@@ -201,22 +236,24 @@ export function createGallery(mount, images, { alt = 'Foto', title = 'Imóvel', 
           <div class="gallery-lightbox-intro">
             <span class="gallery-lightbox-eyebrow">GALERIA DO IMÓVEL</span>
             <h2>Explore cada ambiente</h2>
-            <p>${esc(title)} · ${list.length} ${list.length === 1 ? 'foto' : 'fotos'}</p>
+            <p>${esc(title)} · ${grouped.length} ${grouped.length === 1 ? 'ambiente' : 'ambientes'} separados para você explorar com calma.</p>
           </div>
           <nav class="gallery-lightbox-nav" aria-label="Ir para um ambiente">
-            ${grouped.map((group) => `<button type="button" data-gallery-jump="${group.key}">${group.label}</button>`).join('')}
+            ${grouped.map((group) => `<button type="button" data-gallery-jump="${group.key}">${esc(group.label)}</button>`).join('')}
           </nav>
           ${grouped
             .map(
-              (group) => `<section class="gallery-photo-group" id="gallery-${group.key}" aria-label="${group.label}">
+              (group, groupIndex) => `<section class="gallery-photo-group" id="gallery-${group.key}" aria-label="${esc(group.label)}">
                 <div class="gallery-photo-group-head">
-                  <h3>${group.label}</h3>
-                  <span>${group.images.length} ${group.images.length === 1 ? 'foto' : 'fotos'}</span>
+                  <span class="gallery-photo-group-index">${String(groupIndex + 1).padStart(2, '0')}</span>
+                  <h3>${esc(group.label)}</h3>
+                  <span class="gallery-photo-group-count">${group.images.length} ${group.images.length === 1 ? 'foto' : 'fotos'}</span>
                 </div>
                 <div class="gallery-photo-grid">
                   ${group.images
                     .map((image, photoIndex) => `<figure class="gallery-photo">
                       <img src="${esc(image.url)}" alt="${esc(image.caption || `${group.label}, foto ${photoIndex + 1}`)}" loading="lazy" decoding="async" />
+                      ${group.images.length > 1 ? `<figcaption>Foto ${photoIndex + 1} de ${group.images.length}</figcaption>` : ''}
                     </figure>`)
                     .join('')}
                 </div>
