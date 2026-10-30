@@ -53,7 +53,16 @@ function photoGroup(image) {
 }
 
 function photoFileKey(url) {
-  return url.match(/([a-f0-9]{12})[a-f0-9]*\.(?:jpe?g|png|webp)/i)?.[1]?.toLowerCase();
+  let filePath = url;
+  try {
+    const parsed = new URL(url, 'https://site.local');
+    filePath = parsed.searchParams.get('url') || parsed.pathname;
+    filePath = decodeURIComponent(filePath);
+  } catch {
+    // URLs legadas podem não seguir o formato do proxy.
+  }
+  const filename = filePath.split('/').pop()?.split(/[?#]/)[0] || '';
+  return filename.match(/^([a-f0-9]{12})[a-f0-9]*\.(?:jpe?g|png|webp)$/i)?.[1]?.toLowerCase();
 }
 
 function roomFromCaption(image, category) {
@@ -83,10 +92,32 @@ function groupByRoom(images) {
     if (!rooms.has(key)) rooms.set(key, { key, label: room?.label || category.label, category: category.key, firstIndex: index, images: [] });
     rooms.get(key).images.push(image);
   });
-  return [...rooms.values()].sort((a, b) =>
+  const sorted = [...rooms.values()].sort((a, b) =>
     PHOTO_GROUPS.findIndex((group) => group.key === a.category) - PHOTO_GROUPS.findIndex((group) => group.key === b.category)
     || a.firstIndex - b.firstIndex
   );
+  const totals = new Map();
+  const positions = new Map();
+  let bedroomPosition = 0;
+  let suitePosition = 0;
+  sorted.forEach((room) => totals.set(room.category, (totals.get(room.category) || 0) + 1));
+  return sorted.map((room) => {
+    const position = (positions.get(room.category) || 0) + 1;
+    positions.set(room.category, position);
+    let title = room.label;
+    if (room.category === 'bedrooms' && !/^studio$/i.test(title)) {
+      if (/^suíte/i.test(title)) {
+        suitePosition++;
+        if (!/^suíte\s+\d+$/i.test(title)) title = `Suíte ${suitePosition}`;
+      } else {
+        bedroomPosition++;
+        if (!/^quarto\s+\d+$/i.test(title)) title = `Quarto ${bedroomPosition}`;
+      }
+    } else if (room.category === 'bathrooms' && !/^lavabo/i.test(title)) {
+      if (!/^banheiro\s+\d+$/i.test(title)) title = totals.get('bathrooms') > 1 ? `Banheiro ${position}` : 'Banheiro';
+    }
+    return { ...room, title };
+  });
 }
 
 /**
@@ -239,20 +270,23 @@ export function createGallery(mount, images, { alt = 'Foto', title = 'Imóvel', 
             <p>${esc(title)} · ${grouped.length} ${grouped.length === 1 ? 'ambiente' : 'ambientes'} separados para você explorar com calma.</p>
           </div>
           <nav class="gallery-lightbox-nav" aria-label="Ir para um ambiente">
-            ${grouped.map((group) => `<button type="button" data-gallery-jump="${group.key}">${esc(group.label)}</button>`).join('')}
+            ${grouped.map((group) => `<button type="button" data-gallery-jump="${group.key}">${esc(group.title)}</button>`).join('')}
           </nav>
           ${grouped
             .map(
-              (group, groupIndex) => `<section class="gallery-photo-group" id="gallery-${group.key}" aria-label="${esc(group.label)}">
+              (group, groupIndex) => `<section class="gallery-photo-group" id="gallery-${group.key}" aria-label="${esc(group.title)}">
                 <div class="gallery-photo-group-head">
                   <span class="gallery-photo-group-index">${String(groupIndex + 1).padStart(2, '0')}</span>
-                  <h3>${esc(group.label)}</h3>
+                  <div class="gallery-photo-group-heading">
+                    <h3>${esc(group.title)}</h3>
+                    ${group.title !== group.label ? `<p>${esc(group.label)}</p>` : ''}
+                  </div>
                   <span class="gallery-photo-group-count">${group.images.length} ${group.images.length === 1 ? 'foto' : 'fotos'}</span>
                 </div>
                 <div class="gallery-photo-grid">
                   ${group.images
                     .map((image, photoIndex) => `<figure class="gallery-photo">
-                      <img src="${esc(image.url)}" alt="${esc(image.caption || `${group.label}, foto ${photoIndex + 1}`)}" loading="lazy" decoding="async" />
+                      <img src="${esc(image.url)}" alt="${esc(image.caption || `${group.title}, foto ${photoIndex + 1}`)}" loading="lazy" decoding="async" />
                       ${group.images.length > 1 ? `<figcaption>Foto ${photoIndex + 1} de ${group.images.length}</figcaption>` : ''}
                     </figure>`)
                     .join('')}

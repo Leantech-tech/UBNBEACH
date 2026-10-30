@@ -36,8 +36,9 @@ async function main() {
   mount.querySelector('[data-gallery-open]').click();
   const sections = [...window.document.querySelectorAll('.gallery-photo-group')];
   assert.deepEqual(sections.map((section) => section.querySelector('h3').textContent), [
-    'Quarto 1', 'Suíte', 'Banheiro social', 'Banheiro da suíte', 'Sala de jantar', 'Área externa', 'Varanda da suíte', 'Varanda', 'Outras fotos',
+    'Quarto 1', 'Suíte 1', 'Banheiro 1', 'Banheiro 2', 'Sala de jantar', 'Área externa', 'Varanda da suíte', 'Varanda', 'Outras fotos',
   ]);
+  assert.equal(sections[2].querySelector('.gallery-photo-group-heading p').textContent, 'Banheiro social');
   assert.deepEqual(sections.map((section) => section.querySelectorAll('img').length), [2, 1, 1, 1, 1, 1, 1, 2, 1]);
   assert.equal(sections[0].querySelectorAll('img')[1].getAttribute('src'), '/quarto-1b.jpg');
   assert.equal(sections[7].querySelectorAll('img')[1].getAttribute('src'), '/560fe27b03e2000000000000000000000000.jpg');
@@ -50,6 +51,17 @@ async function main() {
   assert.equal(window.document.querySelector('.gallery-lightbox'), null);
   assert.equal(window.document.body.style.overflow, '');
   gallery.destroy();
+
+  const knownRoom = window.GalleryTest.createGallery(mount, [
+    'https://apilocacao.leantechautomacao.com.br/api/v1/storage/object?url=https%3A%2F%2Fs3.leantechautomacao.com.br%2Flocacao%2Fimoveis%2F626febeda7ce000000000000000000000000.jpg',
+    '/46b20a1ffaf2000000000000000000000000.jpg',
+  ]);
+  mount.querySelector('[data-gallery-open]').click();
+  const identified = window.document.querySelector('.gallery-photo-group');
+  assert.equal(identified.querySelector('h3').textContent, 'Quarto 1');
+  assert.equal(identified.querySelector('.gallery-photo-group-heading p').textContent, 'Quarto com beliche e cama vermelha');
+  assert.equal(identified.querySelectorAll('img').length, 2);
+  knownRoom.destroy();
   dom.window.close();
   console.log('PASS galeria agrupada, navegação e fechamento');
 }
