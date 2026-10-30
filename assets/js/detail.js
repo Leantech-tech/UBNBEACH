@@ -60,7 +60,7 @@ function bedsBreakdown(a) {
  * (comodidades, regras, valores) divididos automaticamente em duas
  * colunas de altura equilibrada.
  */
-export function openApartmentDetail(apartment) {
+export function openApartmentDetail(apartment, { apartments = [] } = {}) {
   const images = propertyImages(apartment);
   const amenities = Array.isArray(apartment.amenities) ? apartment.amenities : [];
 
@@ -195,7 +195,12 @@ export function openApartmentDetail(apartment) {
   /* ---------- Galeria ---------- */
   const gallery = createGallery(modal.body.querySelector('[data-gallery-mount]'), images, {
     alt: `Foto do ${apartment.name}`,
-    title: apartment.name,
+    apartment,
+    otherApartments: apartments.filter((candidate) => candidate?.id !== apartment.id),
+    onSelectApartment: (selected) => {
+      modal.close();
+      openApartmentDetail(selected, { apartments });
+    },
   });
   renderNearby(modal.body.querySelector('[data-nearby-mount]'), apartment);
 

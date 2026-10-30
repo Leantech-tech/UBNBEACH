@@ -135,14 +135,14 @@ function groupByRoom(images) {
  *
  *  @param {HTMLElement} mount Elemento que recebe a galeria.
  *  @param {(string|{url:string, caption?:string})[]} images Fotos.
- *  @param {{ alt?: string, ratio?: number }} [opts]
+ *  @param {{ alt?: string, ratio?: number, apartment?: object, otherApartments?: object[], onSelectApartment?: Function }} [opts]
  *         `ratio` (largura ÷ altura) ajusta a moldura à proporção
  *         real da foto, evitando cortes — útil quando as imagens
  *         trazem texto ou nomes na arte.
  *  @returns {{ show: (i: number) => void, destroy: () => void }}
  * ============================================================
  */
-export function createGallery(mount, images, { alt = 'Foto', title = 'Imóvel', ratio } = {}) {
+export function createGallery(mount, images, { alt = 'Foto', apartment = {}, otherApartments = [], onSelectApartment, ratio } = {}) {
   const normalized = normalizeImages(images);
   const list = normalized.length ? normalized : [{ url: '', caption: '' }];
   const hasPhotos = normalized.length > 0;
@@ -214,6 +214,23 @@ export function createGallery(mount, images, { alt = 'Foto', title = 'Imóvel', 
 
   let lightbox = null;
   const grouped = groupByRoom(list);
+  const fact = (value, singular, plural, icon) => Number(value) > 0
+    ? `<li>${icon}<span>${esc(value)} ${Number(value) === 1 ? singular : plural}</span></li>` : '';
+  const propertyFacts = [
+    fact(apartment.capacity, 'hóspede', 'hóspedes', ICONS.users),
+    fact(apartment.bedrooms, 'quarto', 'quartos', ICONS.bedroom),
+    fact(apartment.beds, 'cama', 'camas', ICONS.bed),
+    fact(apartment.bathrooms, 'banheiro', 'banheiros', ICONS.bath),
+  ].join('');
+  const related = (Array.isArray(otherApartments) ? otherApartments : []).filter((item) => item?.id && item.id !== apartment.id);
+  const relatedCards = related.map((item, i) => {
+    const cover = (Array.isArray(item.imageDetails) && item.imageDetails.find((image) => image?.url)?.url)
+      || (Array.isArray(item.images) && item.images[0]) || '';
+    return `<button type="button" class="gallery-related-card" data-related-index="${i}" aria-label="Ver detalhes de ${esc(item.name)}">
+      <img src="${esc(cover)}" alt="" loading="lazy" decoding="async" />
+      <span>${esc(item.name)}</span>
+    </button>`;
+  }).join('');
 
   const closeLightbox = () => {
     if (!lightbox) return;
@@ -252,7 +269,7 @@ export function createGallery(mount, images, { alt = 'Foto', title = 'Imóvel', 
   const openLightbox = () => {
     if (!hasPhotos || lightbox) return;
     lightbox = document.createElement('div');
-    lightbox.className = 'gallery-lightbox';
+    lightbox.className = related.length ? 'gallery-lightbox has-related' : 'gallery-lightbox';
     lightbox.setAttribute('role', 'dialog');
     lightbox.setAttribute('aria-modal', 'true');
     lightbox.setAttribute('aria-label', 'Todas as fotos do imóvel');
@@ -260,18 +277,15 @@ export function createGallery(mount, images, { alt = 'Foto', title = 'Imóvel', 
       <div class="gallery-lightbox-panel">
         <header class="gallery-lightbox-header">
           <button type="button" class="gallery-lightbox-close" data-lightbox-close aria-label="Voltar aos detalhes do imóvel">${ICONS.arrowLeft}<span>Voltar</span></button>
-          <span class="gallery-lightbox-header-title">Fotos de ${esc(title)}</span>
+          <span class="gallery-lightbox-header-title">Fotos do imóvel</span>
           <span class="gallery-lightbox-header-count">${list.length} ${list.length === 1 ? 'foto' : 'fotos'}</span>
         </header>
         <main class="gallery-lightbox-content" aria-label="Fotos organizadas por ambiente">
           <div class="gallery-lightbox-intro">
             <span class="gallery-lightbox-eyebrow">GALERIA DO IMÓVEL</span>
-            <h2>Explore cada ambiente</h2>
-            <p>${esc(title)} · ${grouped.length} ${grouped.length === 1 ? 'ambiente' : 'ambientes'} separados para você explorar com calma.</p>
+            <h2>${esc(grouped[0]?.title || 'Fotos do imóvel')}</h2>
+            <p>${grouped[0]?.label !== grouped[0]?.title ? `${esc(grouped[0].label)} · ` : ''}${grouped[0]?.images.length || 0} ${grouped[0]?.images.length === 1 ? 'foto' : 'fotos'} deste ambiente</p>
           </div>
-          <nav class="gallery-lightbox-nav" aria-label="Ir para um ambiente">
-            ${grouped.map((group) => `<button type="button" data-gallery-jump="${group.key}">${esc(group.title)}</button>`).join('')}
-          </nav>
           ${grouped
             .map(
               (group, groupIndex) => `<section class="gallery-photo-group" id="gallery-${group.key}" aria-label="${esc(group.title)}">
@@ -283,27 +297,47 @@ export function createGallery(mount, images, { alt = 'Foto', title = 'Imóvel', 
                   </div>
                   <span class="gallery-photo-group-count">${group.images.length} ${group.images.length === 1 ? 'foto' : 'fotos'}</span>
                 </div>
-                <div class="gallery-photo-grid">
+                <div class="gallery-photo-grid ${group.images.length === 1 ? 'is-single' : group.images.length >= 5 ? 'is-mosaic' : 'is-compact'}">
                   ${group.images
                     .map((image, photoIndex) => `<figure class="gallery-photo">
                       <img src="${esc(image.url)}" alt="${esc(image.caption || `${group.title}, foto ${photoIndex + 1}`)}" loading="lazy" decoding="async" />
-                      ${group.images.length > 1 ? `<figcaption>Foto ${photoIndex + 1} de ${group.images.length}</figcaption>` : ''}
                     </figure>`)
                     .join('')}
                 </div>
-              </section>`
+              </section>${groupIndex === 0 && propertyFacts ? `<ul class="gallery-property-meta" aria-label="Resumo do imóvel">${propertyFacts}</ul>` : ''}`
             )
             .join('')}
         </main>
+        ${related.length ? `<aside class="gallery-related" aria-label="Outros imóveis">
+          <div class="gallery-related-inner">
+            <div class="gallery-related-heading">
+              <h3>Outros imóveis</h3>
+              <div class="gallery-related-controls">
+                <button type="button" data-related-scroll="-1" aria-label="Imóveis anteriores">${ICONS.arrowLeft}</button>
+                <button type="button" data-related-scroll="1" aria-label="Próximos imóveis">${ICONS.arrowRight}</button>
+              </div>
+            </div>
+            <div class="gallery-related-track" data-related-track>${relatedCards}</div>
+          </div>
+        </aside>` : ''}
       </div>`;
     previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     document.body.appendChild(lightbox);
     lightbox.querySelectorAll('img').forEach(guardImage);
     lightbox.querySelector('[data-lightbox-close]').addEventListener('click', closeLightbox);
-    lightbox.querySelectorAll('[data-gallery-jump]').forEach((button) => {
+    lightbox.querySelectorAll('[data-related-index]').forEach((button) => {
       button.addEventListener('click', () => {
-        lightbox.querySelector(`#gallery-${button.dataset.galleryJump}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const selected = related[Number(button.dataset.relatedIndex)];
+        if (!selected || !onSelectApartment) return;
+        closeLightbox();
+        onSelectApartment(selected);
+      });
+    });
+    lightbox.querySelectorAll('[data-related-scroll]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const track = lightbox.querySelector('[data-related-track]');
+        track?.scrollBy?.({ left: Number(button.dataset.relatedScroll) * Math.max(track.clientWidth * 0.8, 240), behavior: 'smooth' });
       });
     });
     document.addEventListener('keydown', onLightboxKey, true);

@@ -179,7 +179,7 @@ function renderApartments(filtered = null) {
     el.addEventListener('click', () => {
       const id = el.closest('[data-apartment]').dataset.apartment;
       const apartment = APARTMENTS.find((a) => a.id === id);
-      if (apartment) openApartmentDetail(apartment);
+      if (apartment) openApartmentDetail(apartment, { apartments: APARTMENTS });
     });
   });
 }
