@@ -325,9 +325,10 @@ function initReveals() {
 function initHeroTitle() {
   const h1 = document.querySelector('.hero h1');
   if (!h1) return;
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
 
-  const LETTER_STEP = 70;
-  const WORD_PAUSE = 160;
+  const LETTER_STEP = 24;
+  const WORD_PAUSE = 70;
   let delay = 0;
 
   const wrapChars = (node, parent) => {
@@ -373,18 +374,23 @@ function initHeroTitle() {
     return;
   }
 
+  let started = false;
+  const startAnimation = () => {
+    if (started) return;
+    started = true;
+    h1.classList.add('play');
+    io.disconnect();
+  };
   const io = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          h1.classList.add('play');
-          io.disconnect();
-        }
+        if (entry.isIntersecting) startAnimation();
       });
     },
     { threshold: 0.4 }
   );
   io.observe(h1);
+  window.setTimeout(startAnimation, 900);
 }
 
 /* ============================================================
@@ -399,14 +405,32 @@ function initHeroVideo() {
   const source = video?.querySelector('source[data-src]');
   if (!video || !source) return;
 
-  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  const hero = video.closest('.hero');
+  if (!hero) return;
+
+  const playButton = document.createElement('button');
+  playButton.type = 'button';
+  playButton.className = 'hero-video-control';
+  playButton.hidden = true;
+  playButton.setAttribute('aria-label', 'Reproduzir animação do destaque');
+  playButton.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l10-6.5z"/></svg><span>Reproduzir animação</span>';
+  hero.appendChild(playButton);
+
+  const buttonText = playButton.querySelector('span');
+  const showPlayButton = (label = 'Reproduzir animação') => {
+    buttonText.textContent = label;
+    playButton.setAttribute('aria-label', label);
+    playButton.hidden = false;
+  };
   const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-  if (connection?.saveData || /^(slow-2g|2g)$/.test(connection?.effectiveType ?? '')) return;
+  const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const conserveData = connection?.saveData || /^(slow-2g|2g)$/.test(connection?.effectiveType ?? '');
 
   let ready = false;
   let loaded = false;
   let visible = !('IntersectionObserver' in window);
   let waitingForVideo = false;
+  let loadTimer = 0;
 
   const syncPlayback = () => {
     if (!ready || !visible || document.hidden) {
@@ -416,13 +440,25 @@ function initHeroVideo() {
 
     if (!loaded) {
       loaded = true;
-      source.src = source.dataset.src;
+      source.src = source.dataset.src || source.getAttribute('src');
       source.removeAttribute('data-src');
       video.load();
+      window.clearTimeout(loadTimer);
+      loadTimer = window.setTimeout(() => {
+        if (video.paused && video.readyState < 2) showPlayButton('Tentar reproduzir novamente');
+      }, 8000);
     }
 
     if (video.readyState >= 2) {
-      video.play().catch(() => {});
+      try {
+        const playback = video.play();
+        playback?.then(() => {
+          window.clearTimeout(loadTimer);
+          playButton.hidden = true;
+        }).catch(() => showPlayButton());
+      } catch {
+        showPlayButton();
+      }
       return;
     }
 
@@ -438,6 +474,27 @@ function initHeroVideo() {
       );
     }
   };
+
+  playButton.addEventListener('click', () => {
+    ready = true;
+    visible = true;
+    if (video.error) loaded = false;
+    syncPlayback();
+  });
+  video.addEventListener('playing', () => {
+    window.clearTimeout(loadTimer);
+    playButton.hidden = true;
+  });
+  video.addEventListener('error', () => {
+    loaded = false;
+    waitingForVideo = false;
+    showPlayButton('Tentar reproduzir novamente');
+  });
+
+  if (reducedMotion || conserveData) {
+    showPlayButton();
+    return;
+  }
 
   if ('IntersectionObserver' in window) {
     const observer = new IntersectionObserver((entries) => {

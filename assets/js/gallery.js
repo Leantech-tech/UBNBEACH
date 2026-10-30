@@ -246,7 +246,6 @@ export function createGallery(mount, images, { alt = 'Foto', apartment = {}, oth
   let viewerTrigger = null;
   let viewerIndex = 0;
   let viewerRoom = 0;
-  let footerObserver = null;
   let previousOverflow = '';
 
   const closeViewer = () => {
@@ -315,16 +314,8 @@ export function createGallery(mount, images, { alt = 'Foto', apartment = {}, oth
     viewer.querySelector('[data-viewer-close]').focus({ preventScroll: true });
   };
 
-  const syncRelatedHeight = () => {
-    const footer = lightbox?.querySelector('.gallery-related');
-    if (footer) lightbox.style.setProperty('--gallery-related-height', `${footer.getBoundingClientRect().height}px`);
-  };
-
   const closeLightbox = () => {
     if (!lightbox) return;
-    footerObserver?.disconnect();
-    footerObserver = null;
-    window.removeEventListener('resize', syncRelatedHeight);
     viewer = null;
     viewerTrigger = null;
     lightbox.remove();
@@ -441,17 +432,10 @@ export function createGallery(mount, images, { alt = 'Foto', apartment = {}, oth
     lightbox.querySelectorAll('[data-related-scroll]').forEach((button) => {
       button.addEventListener('click', () => {
         const track = lightbox.querySelector('[data-related-track]');
-        track?.scrollBy?.({ left: Number(button.dataset.relatedScroll) * Math.max(track.clientWidth * 0.8, 240), behavior: 'smooth' });
+        const direction = Number(button.dataset.relatedScroll);
+        track?.scrollBy?.({ top: direction * Math.max(track.clientHeight * 0.8, 160), behavior: 'smooth' });
       });
     });
-    if (related.length) {
-      syncRelatedHeight();
-      window.addEventListener('resize', syncRelatedHeight);
-      if (typeof ResizeObserver !== 'undefined') {
-        footerObserver = new ResizeObserver(syncRelatedHeight);
-        footerObserver.observe(lightbox.querySelector('.gallery-related'));
-      }
-    }
     document.addEventListener('keydown', onLightboxKey, true);
     lightbox.querySelector('[data-lightbox-close]').focus({ preventScroll: true });
   };
