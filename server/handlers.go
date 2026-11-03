@@ -68,7 +68,8 @@ type ImageDTO struct {
 // é estabelecida em background após o startup e publicada via Store,
 // sem corrida com os handlers que leem via DB().
 type App struct {
-	db atomic.Pointer[sql.DB]
+	db     atomic.Pointer[sql.DB]
+	nearby *nearbyService
 }
 
 // DB retorna a conexão ativa, ou nil se o banco ainda não conectou
@@ -449,12 +450,16 @@ func (a *App) fetchImoveis(r *http.Request, id, empresaID string) ([]ImovelDTO, 
 		}
 		it.Reference = pontoReferencia.String
 		it.Description = firstNonEmpty(descCompleta.String, descCurta.String)
-		it.MapQuery, it.MapQuerySource = mapDestination(
-			it.Description, descCurta.String,
-			endereco.String, numero.String, complemento.String,
-			bairro.String, cidade.String, uf.String, cep.String,
-			latitude, longitude,
-		)
+		if it.HideAddress {
+			it.MapQuerySource = "unavailable"
+		} else {
+			it.MapQuery, it.MapQuerySource = mapDestination(
+				it.Description, descCurta.String,
+				endereco.String, numero.String, complemento.String,
+				bairro.String, cidade.String, uf.String, cep.String,
+				latitude, longitude,
+			)
+		}
 		it.PriceNotes = obsValores.String
 		it.Checkin = trimTime(checkin.String)
 		it.Checkout = trimTime(checkout.String)

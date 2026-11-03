@@ -22,7 +22,7 @@ func main() {
 	// Conexão com banco é feita em background para não bloquear startup.
 	// Criado antes da goroutine para que a conexão, quando estabelecida,
 	// seja publicada no App (e não perdida numa cópia de valor nil).
-	app := &App{}
+	app := &App{nearby: newNearbyService(os.Getenv("OVERPASS_URL"))}
 
 	go func() {
 		conn, err := sql.Open("postgres", cfg.DSN())
@@ -65,6 +65,7 @@ func main() {
 	mux.HandleFunc("GET /api/imoveis/{id}/cotacao", app.getStayQuote)
 	mux.HandleFunc("GET /api/empresa", app.getEmpresa)
 	mux.HandleFunc("GET /api/pontos-interesse", app.listPontosInteresse)
+	mux.HandleFunc("GET /api/imoveis/{id}/pontos-proximos", app.listNearbyPlaces)
 	mux.HandleFunc("GET /api/status", app.getStatus)
 	mux.HandleFunc("GET /api/imoveis/{id}/avaliacoes", app.listAvaliacoes)
 	mux.HandleFunc("POST /api/imoveis/{id}/avaliacoes", app.createAvaliacao)

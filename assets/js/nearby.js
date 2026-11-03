@@ -43,15 +43,8 @@ function haversineKm(origin, destination) {
 const formatDistance = (km) =>
   km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1).replace('.', ',')} km`;
 
-function radiusFor(apartment) {
-  const configured = Number(apartment.nearbyRadiusKm);
-  return Number.isFinite(configured) && configured > 0
-    ? Math.min(configured, 100)
-    : DEFAULT_RADIUS_KM;
-}
-
 function mapQuery(apartment) {
-  if (apartment.mapQuerySource === 'unavailable') return '';
+  if (apartment.hideAddress || apartment.mapQuerySource === 'unavailable') return '';
   if (typeof apartment.mapQuery === 'string' && apartment.mapQuery.trim()) return apartment.mapQuery.trim();
   const origin = coordinates(apartment.latitude, apartment.longitude);
   if (origin) return `${origin.latitude},${origin.longitude}`;
@@ -90,15 +83,79 @@ function nearbyItem(point, category, distanceKm, originQuery) {
     </li>`;
 }
 
-function emptyMessage({ origin, allPoints, pointsWithCoords, radiusKm }) {
+function emptyMessage({ origin, allPoints, pointsWithCoords, radiusKm, failed }) {
   if (!origin) {
     return 'Este imóvel não possui coordenadas públicas; por isso não é possível calcular atrações dentro do raio.';
   }
-  if (allPoints.length === 0) return 'Nenhum ponto turístico está cadastrado no momento.';
+  if (failed) return 'A busca de lugares está indisponível no momento. Tente novamente mais tarde.';
+  if (allPoints.length === 0) return 'Nenhum lugar mapeado foi encontrado neste raio.';
   if (pointsWithCoords.length === 0) {
     return 'Os pontos turísticos cadastrados ainda não possuem coordenadas para calcular a distância.';
   }
-  return `Nenhum ponto turístico cadastrado foi encontrado em um raio de ${formatDistance(radiusKm)}.`;
+  return `Nenhum ponto de interesse foi encontrado em um raio de ${formatDistance(radiusKm)}.`;
+}
+
+function renderAttractions(mount, origin, failed, externalPoints = []) {
+  const listMount = mount.querySelector('[data-nearby-results]');
+  if (!listMount || !mount.isConnected) return;
+  const allPoints = getPoints().filter((point) => point && point.name);
+  const pointsWithCoords = allPoints
+    .map((point) => ({ point, coords: coordinates(point.latitude, point.longitude) }))
+    .filter(({ coords }) => coords);
+  const categories = getCategories();
+  const entries = [
+    ...externalPoints.map((point) => ({
+      point,
+      category: { name: point.category, icon: point.icon },
+      coords: coordinates(point.latitude, point.longitude),
+      source: 'osm',
+    })),
+    ...pointsWithCoords.map(({ point, coords }) => ({
+      point,
+      category: categories.find((category) => category.id === point.categoryId) ?? null,
+      coords,
+      source: 'local',
+    })),
+  ];
+  const seen = new Map();
+  const nearbyPoints = [];
+  for (const entry of entries) {
+    if (!origin || !entry.coords) continue;
+    const distanceKm = haversineKm(origin, entry.coords);
+    if (distanceKm > DEFAULT_RADIUS_KM) continue;
+    const key = entry.point.name.trim().toLocaleLowerCase('pt-BR');
+    const previous = seen.get(key) ?? [];
+    if (entry.source === 'local' && previous.some((coords) => haversineKm(coords, entry.coords) < 0.05)) continue;
+    if (entry.source === 'osm') seen.set(key, [...previous, entry.coords]);
+    nearbyPoints.push({ ...entry, distanceKm });
+  }
+  nearbyPoints.sort((a, b) => a.distanceKm - b.distanceKm);
+  const originQuery = origin ? `${origin.latitude},${origin.longitude}` : '';
+  const categoryNames = [...new Set(nearbyPoints.map(({ category }) => category?.name || 'Ponto de interesse'))].sort();
+  listMount.innerHTML = nearbyPoints.length
+    ? `<div class="nearby-controls">
+         <label for="nearby-category">Categoria</label>
+         <select id="nearby-category" data-nearby-category>
+           <option value="">Todas (${nearbyPoints.length})</option>
+           ${categoryNames.map((name) => `<option value="${esc(name)}">${esc(name)} (${nearbyPoints.filter(({ category }) => (category?.name || 'Ponto de interesse') === name).length})</option>`).join('')}
+         </select>
+       </div>
+       <p class="nearby-count" data-nearby-count>${nearbyPoints.length} lugares encontrados</p>
+       <ol class="nearby-list" data-nearby-list></ol>
+       <p class="nearby-note">Distâncias em linha reta a partir do imóvel.${failed ? ' A busca de lugares mapeados está indisponível; exibindo os pontos cadastrados.' : ''}</p>
+       ${externalPoints.length ? '<p class="nearby-note">Dados de lugares: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors (ODbL)</a>.</p>' : ''}`
+    : `<p class="nearby-empty nearby-empty-card">${emptyMessage({ origin, allPoints, pointsWithCoords, radiusKm: DEFAULT_RADIUS_KM, failed })}</p>`;
+  const renderList = (categoryName = '') => {
+    const visible = categoryName
+      ? nearbyPoints.filter(({ category }) => (category?.name || 'Ponto de interesse') === categoryName)
+      : nearbyPoints;
+    const list = listMount.querySelector('[data-nearby-list]');
+    if (!list) return;
+    list.innerHTML = visible.map(({ point, category, distanceKm }) => nearbyItem(point, category, distanceKm, originQuery)).join('');
+    listMount.querySelector('[data-nearby-count]').textContent = `${visible.length} ${visible.length === 1 ? 'lugar encontrado' : 'lugares encontrados'}`;
+  };
+  renderList();
+  listMount.querySelector('[data-nearby-category]')?.addEventListener('change', (event) => renderList(event.target.value));
 }
 
 /**
@@ -108,8 +165,8 @@ function emptyMessage({ origin, allPoints, pointsWithCoords, radiusKm }) {
 export function renderNearby(mount, apartment) {
   if (!mount) return;
 
-  const origin = coordinates(apartment.latitude, apartment.longitude);
-  const radiusKm = radiusFor(apartment);
+  const origin = apartment.hideAddress ? null : coordinates(apartment.latitude, apartment.longitude);
+  const radiusKm = DEFAULT_RADIUS_KM;
   const query = mapQuery(apartment);
   const mapSource = String(apartment.mapQuerySource ?? '');
   const zoom = mapSource === 'description' || mapSource === 'address' || mapSource === 'coordinates' ? 17 : origin ? 15 : 12;
@@ -127,21 +184,6 @@ export function renderNearby(mount, apartment) {
   const directionsUrl = query
     ? 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(query) + '&travelmode=driving'
     : '';
-
-  const allPoints = getPoints().filter((point) => point && point.name);
-  const pointsWithCoords = allPoints
-    .map((point) => ({ point, coords: coordinates(point.latitude, point.longitude) }))
-    .filter(({ coords }) => coords);
-  const nearbyPoints = origin
-    ? pointsWithCoords
-        .map(({ point, coords }) => ({ point, distanceKm: haversineKm(origin, coords) }))
-        .filter(({ distanceKm }) => distanceKm <= radiusKm)
-        .sort((a, b) => a.distanceKm - b.distanceKm)
-    : [];
-
-  const categories = getCategories();
-  const categoryOf = (point) => categories.find((category) => category.id === point.categoryId) ?? null;
-  const originQuery = origin ? `${origin.latitude},${origin.longitude}` : '';
 
   mount.innerHTML = `
     <div class="detail-block nearby-map-block">
@@ -167,22 +209,39 @@ export function renderNearby(mount, apartment) {
     </div>
 
     <div class="detail-block nearby-attractions">
-      <h4>Pontos turísticos próximos</h4>
-      <p class="nearby-radius">Atrações cadastradas em um raio de ${formatDistance(radiusKm)}.</p>
-      ${
-        nearbyPoints.length
-          ? `<ol class="nearby-list">
-               ${nearbyPoints
-                 .map(({ point, distanceKm }) => nearbyItem(point, categoryOf(point), distanceKm, originQuery))
-                 .join('')}
-             </ol>
-             <p class="nearby-note">Distâncias em linha reta a partir do imóvel.</p>`
-          : `<p class="nearby-empty nearby-empty-card">${emptyMessage({
-              origin,
-              allPoints,
-              pointsWithCoords,
-              radiusKm,
-            })}</p>`
-      }
+      <h4>Pontos de interesse próximos</h4>
+      <p class="nearby-radius">Lugares em um raio de ${formatDistance(radiusKm)} a partir deste imóvel.</p>
+      <div data-nearby-results aria-live="polite">${origin && /^[0-9a-f-]{36}$/i.test(String(apartment.id))
+        ? '<p class="nearby-empty">Buscando lugares próximos...</p>'
+        : ''}</div>
     </div>`;
+
+  if (!origin || !/^[0-9a-f-]{36}$/i.test(String(apartment.id)) || typeof fetch === 'undefined') {
+    renderAttractions(mount, origin, false);
+    return;
+  }
+  const controller = new AbortController();
+  let externalPoints = [];
+  let failed = false;
+  const refresh = () => renderAttractions(mount, origin, failed, externalPoints);
+  document.addEventListener('points-loaded', refresh);
+  void fetch(`/api/imoveis/${encodeURIComponent(apartment.id)}/pontos-proximos`, { signal: controller.signal })
+    .then((response) => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    })
+    .then((data) => {
+      externalPoints = Array.isArray(data.points) ? data.points : [];
+      refresh();
+    })
+    .catch(() => {
+      if (!controller.signal.aborted) {
+        failed = true;
+        refresh();
+      }
+    });
+  return () => {
+    document.removeEventListener('points-loaded', refresh);
+    controller.abort();
+  };
 }

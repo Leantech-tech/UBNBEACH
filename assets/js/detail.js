@@ -202,7 +202,7 @@ export function openApartmentDetail(apartment, { apartments = [] } = {}) {
       openApartmentDetail(selected, { apartments });
     },
   });
-  renderNearby(modal.body.querySelector('[data-nearby-mount]'), apartment);
+  const stopNearby = renderNearby(modal.body.querySelector('[data-nearby-mount]'), apartment);
 
   /* ---------- CTA Alugar → fluxo de reserva ---------- */
   modal.body.querySelector('[data-action="rent"]')?.addEventListener('click', () => {
@@ -222,6 +222,7 @@ export function openApartmentDetail(apartment, { apartments = [] } = {}) {
   // Remove os listeners da galeria quando o modal fechar
   const originalClose = modal.close;
   modal.close = () => {
+    stopNearby?.();
     gallery.destroy();
     originalClose();
   };

@@ -41,6 +41,7 @@ export async function loadPoints() {
   } catch {
     /* mantém os dados locais de exemplo */
   }
+  document.dispatchEvent(new Event('points-loaded'));
 }
 
 /** Pontos e categorias atualmente carregados (API ou fallback). */
