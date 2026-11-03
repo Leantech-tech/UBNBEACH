@@ -22,7 +22,7 @@ func main() {
 	// Conexão com banco é feita em background para não bloquear startup.
 	// Criado antes da goroutine para que a conexão, quando estabelecida,
 	// seja publicada no App (e não perdida numa cópia de valor nil).
-	app := &App{nearby: newNearbyService(os.Getenv("OVERPASS_URL"))}
+	app := &App{nearby: newNearbyService(os.Getenv("GOOGLE_PLACES_API_KEY"))}
 
 	go func() {
 		conn, err := sql.Open("postgres", cfg.DSN())

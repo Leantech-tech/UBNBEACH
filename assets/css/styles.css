@@ -2313,6 +2313,10 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   padding-top: 0.4rem;
 }
 .detail-nearby .detail-block { margin-top: 0; }
+.nearby-open { margin-top: 0.35rem; }
+.modal-nearby { max-width: 760px; }
+.modal-nearby .modal-body { max-height: min(76vh, 760px); overflow-y: auto; }
+.nearby-google-attribution { font-family: Roboto, Arial, sans-serif; font-size: 14px; font-weight: 400; color: #5e5e5e; white-space: nowrap; }
 
 .nearby-map {
   overflow: hidden;

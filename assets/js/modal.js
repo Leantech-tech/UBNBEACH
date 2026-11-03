@@ -42,7 +42,7 @@ export function openModal(html, { variant = '', onClose } = {}) {
   };
 
   const onKey = (e) => {
-    if (e.key === 'Escape') close();
+    if (e.key === 'Escape' && overlay === root.querySelector('.modal-overlay:last-child')) close();
   };
   document.addEventListener('keydown', onKey);
 
