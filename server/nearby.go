@@ -25,9 +25,10 @@ type nearbyPlace struct {
 	Category   string  `json:"category"`
 	Icon       string  `json:"icon"`
 	Address    string  `json:"address"`
+	Source     string  `json:"source,omitempty"`
 	Latitude   float64 `json:"latitude"`
 	Longitude  float64 `json:"longitude"`
-	DistanceKm float64 `json:"distanceKm"`
+	DistanceKm float64 `json:"distanceKm,omitempty"`
 }
 
 type overpassElement struct {
@@ -67,7 +68,7 @@ func newNearbyService(endpoint string) *nearbyService {
 }
 
 // A localização é lida do cadastro ativo no servidor; o cliente não escolhe
-// coordenadas e um imóvel com endereço oculto nunca dispara a consulta.
+// coordenadas. Para um endereço oculto, só os próprios pontos são publicados.
 func (a *App) listNearbyPlaces(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if a.DB() == nil {
@@ -92,8 +93,13 @@ func (a *App) listNearbyPlaces(w http.ResponseWriter, r *http.Request) {
 		respondError(w, err)
 		return
 	}
-	if hidden || !lat.Valid || !lon.Valid || !validGeo(lat.Float64, lon.Float64) {
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "localização pública indisponível"})
+	if !lat.Valid || !lon.Valid || !validGeo(lat.Float64, lon.Float64) {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "localização do imóvel indisponível"})
+		return
+	}
+	registered, err := registeredNearby(r.Context(), a.DB(), lat.Float64, lon.Float64)
+	if err != nil {
+		respondError(w, err)
 		return
 	}
 	service := a.nearby
@@ -103,10 +109,83 @@ func (a *App) listNearbyPlaces(w http.ResponseWriter, r *http.Request) {
 	places, err := service.places(r.Context(), lat.Float64, lon.Float64)
 	if err != nil {
 		log.Printf("AVISO: busca de pontos próximos indisponível: %v", err)
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "busca de pontos indisponível"})
-		return
+		if len(registered) == 0 {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "busca de pontos indisponível"})
+			return
+		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"radiusKm": 10, "points": places})
+	combined := mergeNearbyPlaces(places, registered)
+	writeJSON(w, http.StatusOK, map[string]any{"radiusKm": 10, "points": publicNearbyPlaces(combined, hidden), "partial": err != nil})
+}
+
+func registeredNearby(ctx context.Context, db *sql.DB, lat, lon float64) ([]nearbyPlace, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT p.id, p.nome, coalesce(p.endereco, ''), coalesce(p.numero, ''),
+		       coalesce(p.bairro, ''), coalesce(p.cidade, ''),
+		       p.latitude, p.longitude, c.nome, coalesce(c.icone, '')
+		FROM pontos_interesse p
+		JOIN categorias_ponto_interesse c ON c.id = p.categoria_id AND c.ativo
+		WHERE p.ativo AND p.publicado AND p.latitude IS NOT NULL AND p.longitude IS NOT NULL
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	places := []nearbyPlace{}
+	for rows.Next() {
+		var point nearbyPlace
+		var street, number, neighborhood, city string
+		if err := rows.Scan(&point.ID, &point.Name, &street, &number, &neighborhood, &city,
+			&point.Latitude, &point.Longitude, &point.Category, &point.Icon); err != nil {
+			return nil, err
+		}
+		if point.Name == "" || !validGeo(point.Latitude, point.Longitude) {
+			continue
+		}
+		point.DistanceKm = geoDistanceKm(lat, lon, point.Latitude, point.Longitude)
+		if point.DistanceKm > 10 {
+			continue
+		}
+		point.Address = strings.Join(nonEmpty(street, number), ", ")
+		if point.Address == "" {
+			point.Address = strings.Join(nonEmpty(neighborhood, city), " · ")
+		}
+		point.Source = "registered"
+		places = append(places, point)
+	}
+	return places, rows.Err()
+}
+
+func mergeNearbyPlaces(osm, registered []nearbyPlace) []nearbyPlace {
+	out := append([]nearbyPlace(nil), osm...)
+	for _, point := range registered {
+		duplicate := false
+		for _, known := range osm {
+			if strings.EqualFold(strings.TrimSpace(known.Name), strings.TrimSpace(point.Name)) &&
+				geoDistanceKm(known.Latitude, known.Longitude, point.Latitude, point.Longitude) < 0.05 {
+				duplicate = true
+				break
+			}
+		}
+		if !duplicate {
+			out = append(out, point)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].DistanceKm < out[j].DistanceKm })
+	return out
+}
+
+func publicNearbyPlaces(places []nearbyPlace, hidden bool) []nearbyPlace {
+	if !hidden {
+		return places
+	}
+	public := append([]nearbyPlace(nil), places...)
+	for i := range public {
+		public[i].DistanceKm = 0
+	}
+	// A ordem por distância também poderia indicar a origem oculta.
+	sort.Slice(public, func(i, j int) bool { return public[i].Name < public[j].Name })
+	return public
 }
 
 func validGeo(lat, lon float64) bool {
@@ -234,7 +313,7 @@ func normalizePlace(element overpassElement, originLat, originLon float64) (near
 	}
 	return nearbyPlace{
 		ID: fmt.Sprintf("osm-%s-%d", element.Type, element.ID), Name: name,
-		Category: category, Icon: icon, Address: address,
+		Category: category, Icon: icon, Address: address, Source: "osm",
 		Latitude: lat, Longitude: lon, DistanceKm: distance,
 	}, true
 }

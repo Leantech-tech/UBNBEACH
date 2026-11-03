@@ -2309,14 +2309,10 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
    LOCALIZAÇÃO E INTERESSES PRÓXIMOS — detalhe do imóvel
    ============================================================ */
 .detail-nearby {
-  display: grid;
-  gap: 1.4rem;
+  display: block;
   padding-top: 0.4rem;
 }
 .detail-nearby .detail-block { margin-top: 0; }
-@media (min-width: 900px) {
-  .detail-nearby { grid-template-columns: minmax(300px, 0.85fr) minmax(0, 1.15fr); }
-}
 
 .nearby-map {
   overflow: hidden;

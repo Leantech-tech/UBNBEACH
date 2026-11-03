@@ -85,3 +85,28 @@ func TestNearbyResponseCannotBePubliclyCached(t *testing.T) {
 		t.Fatalf("Cache-Control = %q, want no-store", got)
 	}
 }
+
+func TestHiddenPropertyOmitsDistanceAndOrder(t *testing.T) {
+	places := []nearbyPlace{
+		{ID: "near", Name: "Z", DistanceKm: 0.1},
+		{ID: "far", Name: "A", DistanceKm: 9.5},
+	}
+	public := publicNearbyPlaces(places, true)
+	if public[0].ID != "far" || public[0].DistanceKm != 0 || public[1].DistanceKm != 0 {
+		t.Fatalf("hidden response exposes distance or distance order: %+v", public)
+	}
+	if places[0].DistanceKm != 0.1 {
+		t.Fatal("internal distance was modified")
+	}
+}
+
+func TestMergeNearbyPlacesKeepsRegisteredFallbackAndDeduplicates(t *testing.T) {
+	registered := []nearbyPlace{{ID: "local", Name: "Mercado", Latitude: -23.5, Longitude: -45.1, DistanceKm: 0.2, Source: "registered"}}
+	if got := mergeNearbyPlaces(nil, registered); len(got) != 1 || got[0].Source != "registered" {
+		t.Fatalf("registered fallback was lost: %+v", got)
+	}
+	osm := []nearbyPlace{{ID: "osm", Name: "mercado", Latitude: -23.5001, Longitude: -45.1, DistanceKm: 0.21, Source: "osm"}}
+	if got := mergeNearbyPlaces(osm, registered); len(got) != 1 || got[0].Source != "osm" {
+		t.Fatalf("duplicate registered point was not removed: %+v", got)
+	}
+}
