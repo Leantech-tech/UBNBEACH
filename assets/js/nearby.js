@@ -11,16 +11,31 @@ const formatDistance = (km) => km < 1
   ? `${Math.round(km * 1000)} m`
   : `${km.toFixed(1).replace('.', ',')} km`;
 
+function googleMapsURL(value) {
+  try {
+    const url = new URL(String(value ?? ''));
+    if (url.protocol === 'https:' && url.hostname === 'www.google.com' && url.pathname.startsWith('/maps/')) {
+      return url.href;
+    }
+  } catch {
+    // links externos inválidos simplesmente não são mostrados
+  }
+  return '';
+}
+
 function nearbyItem(point, hidden) {
   const distance = !hidden && Number.isFinite(Number(point.distanceKm)) && Number(point.distanceKm) > 0
     ? `<span class="nearby-dist">${formatDistance(Number(point.distanceKm))}</span>` : '';
+  const mapsURL = googleMapsURL(point.googleMapsUrl);
   return `<li class="nearby-item">
     ${distance}
     <div class="nearby-info">
       <span class="nearby-cat">${categoryIcon(point.icon || '')}<span>${esc(point.category || 'Ponto de interesse')}</span></span>
       <h4>${esc(point.name)}</h4>
       ${point.address ? `<p class="nearby-address">${ICONS.pin}<span>${esc(point.address)}</span></p>` : ''}
+      ${point.source === 'registered' ? '<span class="nearby-local-source">Cadastro local</span>' : ''}
     </div>
+    ${mapsURL ? `<a class="nearby-map-link" href="${esc(mapsURL)}" target="_blank" rel="noopener noreferrer">${ICONS.pin}<span>Ver no Google Maps</span></a>` : ''}
   </li>`;
 }
 

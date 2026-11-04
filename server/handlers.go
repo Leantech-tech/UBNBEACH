@@ -13,50 +13,51 @@ import (
 
 // ImovelDTO é o formato exposto à API, pronto para o frontend consumir.
 type ImovelDTO struct {
-	ID             string     `json:"id"`
-	Code           string     `json:"code"`
-	Name           string     `json:"name"`
-	Type           string     `json:"type"`
-	Location       string     `json:"location"`
-	Address        string     `json:"address"`
-	MapQuery       string     `json:"mapQuery"`
-	MapQuerySource string     `json:"mapQuerySource"`
-	HideAddress    bool       `json:"hideAddress"`
-	Latitude       *float64   `json:"latitude"`
-	Longitude      *float64   `json:"longitude"`
-	Reference      string     `json:"referencePoint"`
-	Capacity       int        `json:"capacity"`
-	Bedrooms       int        `json:"bedrooms"`
-	Suites         int        `json:"suites"`
-	Beds           int        `json:"beds"`
-	DoubleBeds     int        `json:"doubleBeds"`
-	SingleBeds     int        `json:"singleBeds"`
-	BunkBeds       int        `json:"bunkBeds"`
-	SofaBeds       int        `json:"sofaBeds"`
-	Bathrooms      int        `json:"bathrooms"`
-	Parking        int        `json:"parkingSpaces"`
-	SizeM2         *int       `json:"sizeM2"`
-	Price          *string    `json:"price"`
-	DailyPrice     *float64   `json:"dailyPrice"`
-	WeekendPrice   *float64   `json:"weekendPrice"`
-	CleaningFee    *float64   `json:"cleaningFee"`
-	SecurityDep    *float64   `json:"securityDeposit"`
-	PriceNotes     string     `json:"priceNotes"`
-	Available      bool       `json:"available"`
-	Description    string     `json:"description"`
-	Amenities      []string   `json:"amenities"`
-	Images         []string   `json:"images"`
-	ImageDetails   []ImageDTO `json:"imageDetails"`
-	Featured       bool       `json:"featured"`
-	Checkin        string     `json:"checkin"`
-	Checkout       string     `json:"checkout"`
-	MinStay        int        `json:"minStay"`
-	PetsAllowed    bool       `json:"petsAllowed"`
-	EventsAllowed  bool       `json:"eventsAllowed"`
-	SmokingAllowed bool       `json:"smokingAllowed"`
-	HouseRules     string     `json:"houseRules"`
-	EmpresaNome    string     `json:"empresaNome"`
-	EmpresaWhats   string     `json:"empresaWhatsapp"`
+	ID               string     `json:"id"`
+	Code             string     `json:"code"`
+	Name             string     `json:"name"`
+	Type             string     `json:"type"`
+	Location         string     `json:"location"`
+	Address          string     `json:"address"`
+	MapQuery         string     `json:"mapQuery"`
+	MapQuerySource   string     `json:"mapQuerySource"`
+	HideAddress      bool       `json:"hideAddress"`
+	HasExactLocation bool       `json:"hasExactLocation"`
+	Latitude         *float64   `json:"latitude"`
+	Longitude        *float64   `json:"longitude"`
+	Reference        string     `json:"referencePoint"`
+	Capacity         int        `json:"capacity"`
+	Bedrooms         int        `json:"bedrooms"`
+	Suites           int        `json:"suites"`
+	Beds             int        `json:"beds"`
+	DoubleBeds       int        `json:"doubleBeds"`
+	SingleBeds       int        `json:"singleBeds"`
+	BunkBeds         int        `json:"bunkBeds"`
+	SofaBeds         int        `json:"sofaBeds"`
+	Bathrooms        int        `json:"bathrooms"`
+	Parking          int        `json:"parkingSpaces"`
+	SizeM2           *int       `json:"sizeM2"`
+	Price            *string    `json:"price"`
+	DailyPrice       *float64   `json:"dailyPrice"`
+	WeekendPrice     *float64   `json:"weekendPrice"`
+	CleaningFee      *float64   `json:"cleaningFee"`
+	SecurityDep      *float64   `json:"securityDeposit"`
+	PriceNotes       string     `json:"priceNotes"`
+	Available        bool       `json:"available"`
+	Description      string     `json:"description"`
+	Amenities        []string   `json:"amenities"`
+	Images           []string   `json:"images"`
+	ImageDetails     []ImageDTO `json:"imageDetails"`
+	Featured         bool       `json:"featured"`
+	Checkin          string     `json:"checkin"`
+	Checkout         string     `json:"checkout"`
+	MinStay          int        `json:"minStay"`
+	PetsAllowed      bool       `json:"petsAllowed"`
+	EventsAllowed    bool       `json:"eventsAllowed"`
+	SmokingAllowed   bool       `json:"smokingAllowed"`
+	HouseRules       string     `json:"houseRules"`
+	EmpresaNome      string     `json:"empresaNome"`
+	EmpresaWhats     string     `json:"empresaWhatsapp"`
 }
 
 type ImageDTO struct {
@@ -442,9 +443,10 @@ func (a *App) fetchImoveis(r *http.Request, id, empresaID string) ([]ImovelDTO, 
 		it.ImageDetails = []ImageDTO{}
 		it.Location = joinLocation(bairro.String, cidade.String)
 		it.HideAddress = ocultarEndereco.Bool
+		it.HasExactLocation = latitude.Valid && longitude.Valid && validGeo(latitude.Float64, longitude.Float64)
 		it.Address = buildAddress(endereco.String, numero.String, complemento.String,
 			bairro.String, cidade.String, uf.String, cep.String, ocultarEndereco.Bool)
-		if !it.HideAddress && latitude.Valid && longitude.Valid {
+		if !it.HideAddress && it.HasExactLocation {
 			lat, lng := latitude.Float64, longitude.Float64
 			it.Latitude, it.Longitude = &lat, &lng
 		}

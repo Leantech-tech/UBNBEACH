@@ -44,6 +44,25 @@ function propertyImages(apartment) {
   return result;
 }
 
+function propertyMapURL(apartment) {
+  const id = String(apartment?.id ?? '');
+  const isUUID = /^[0-9a-f-]{36}$/i.test(id);
+  const hasCoordinates =
+    typeof apartment?.latitude === 'number' &&
+    typeof apartment?.longitude === 'number' &&
+    Number.isFinite(apartment.latitude) &&
+    Number.isFinite(apartment.longitude) &&
+    (apartment.latitude !== 0 || apartment.longitude !== 0);
+  if (isUUID && (apartment?.hasExactLocation || hasCoordinates)) {
+    return `/api/imoveis/${encodeURIComponent(id)}/mapa`;
+  }
+  if (!apartment?.hideAddress && typeof apartment?.mapQuery === 'string' && apartment.mapQuery.trim()) {
+    const query = new URLSearchParams({ api: '1', query: apartment.mapQuery.trim() });
+    return `https://www.google.com/maps/search/?${query.toString()}`;
+  }
+  return '';
+}
+
 /** Monta o resumo das camas ("2 de casal · 2 beliches · 1 sofá-cama"). */
 function bedsBreakdown(a) {
   const parts = [];
@@ -62,6 +81,7 @@ function bedsBreakdown(a) {
  */
 export function openApartmentDetail(apartment, { apartments = [] } = {}) {
   const images = propertyImages(apartment);
+  const propertyMapsURL = propertyMapURL(apartment);
   const amenities = Array.isArray(apartment.amenities) ? apartment.amenities : [];
 
   const meta = [
@@ -127,6 +147,7 @@ export function openApartmentDetail(apartment, { apartments = [] } = {}) {
             ${apartment.featured ? '<span class="badge badge-gold">Destaque</span>' : ''}
             <h3>${esc(apartment.name)}</h3>
             <p class="detail-location">${ICONS.pin}<span>${esc(apartment.location)}</span></p>
+            ${propertyMapsURL ? `<a class="detail-map-link" href="${esc(propertyMapsURL)}" target="_blank" rel="noopener noreferrer">${ICONS.pin}<span>${apartment.hasExactLocation || apartment.hideAddress ? 'Ver localização exata no Google Maps' : 'Abrir no Google Maps'}</span></a>` : ''}
             ${
               !linkedWhatsApp() && apartment.empresaNome
                 ? `<p class="detail-empresa">${ICONS.building}<span>Anunciado por ${esc(apartment.empresaNome)}</span></p>`

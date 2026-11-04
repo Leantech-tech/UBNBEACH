@@ -63,6 +63,7 @@ func main() {
 	mux.HandleFunc("GET /api/imoveis/{id}", app.getImovel)
 	mux.HandleFunc("GET /api/imoveis/{id}/disponibilidade", app.getAvailability)
 	mux.HandleFunc("GET /api/imoveis/{id}/cotacao", app.getStayQuote)
+	mux.HandleFunc("GET /api/imoveis/{id}/mapa", app.redirectImovelToGoogleMaps)
 	mux.HandleFunc("GET /api/empresa", app.getEmpresa)
 	mux.HandleFunc("GET /api/pontos-interesse", app.listPontosInteresse)
 	mux.HandleFunc("GET /api/imoveis/{id}/pontos-proximos", app.listNearbyPlaces)
