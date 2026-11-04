@@ -237,6 +237,20 @@ func TestGoogleMapsURLsOpenTheSelectedPlaceOrExactPin(t *testing.T) {
 	}
 }
 
+func TestGoogleMapsEmbedURLCentersOnExactCoordinates(t *testing.T) {
+	embedURL, err := url.Parse(googleMapsEmbedURL("public-embed-key", -23.5000012, -45.1000023))
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := embedURL.Query()
+	if embedURL.Host != "www.google.com" || embedURL.Path != "/maps/embed/v1/view" {
+		t.Fatalf("unexpected Google Maps Embed URL: %s", embedURL)
+	}
+	if query.Get("key") != "public-embed-key" || query.Get("center") != "-23.5000012,-45.1000023" || query.Get("zoom") != "17" {
+		t.Fatalf("map URL does not contain the exact center and zoom: %s", embedURL)
+	}
+}
+
 func TestMergeNearbyPlacesKeepsRegisteredFallbackAndDeduplicates(t *testing.T) {
 	registered := []nearbyPlace{{ID: "local", Name: "Mercado", Latitude: -23.5, Longitude: -45.1, DistanceKm: 0.2, Source: "registered"}}
 	if got := mergeNearbyPlaces(nil, registered); len(got) != 1 || got[0].Source != "registered" || got[0].MapsURL == "" {

@@ -47,13 +47,7 @@ function propertyImages(apartment) {
 function propertyMapURL(apartment) {
   const id = String(apartment?.id ?? '');
   const isUUID = /^[0-9a-f-]{36}$/i.test(id);
-  const hasCoordinates =
-    typeof apartment?.latitude === 'number' &&
-    typeof apartment?.longitude === 'number' &&
-    Number.isFinite(apartment.latitude) &&
-    Number.isFinite(apartment.longitude) &&
-    (apartment.latitude !== 0 || apartment.longitude !== 0);
-  if (isUUID && (apartment?.hasExactLocation || hasCoordinates)) {
+  if (isUUID) {
     return `/api/imoveis/${encodeURIComponent(id)}/mapa`;
   }
   if (!apartment?.hideAddress && typeof apartment?.mapQuery === 'string' && apartment.mapQuery.trim()) {
@@ -61,6 +55,76 @@ function propertyMapURL(apartment) {
     return `https://www.google.com/maps/search/?${query.toString()}`;
   }
   return '';
+}
+
+function renderPropertyLocation(mount, apartment) {
+  if (!mount) return;
+  const mapURL = propertyMapURL(apartment);
+  mount.innerHTML = `<section class="detail-property-location" aria-label="Localização do imóvel">
+    <div class="detail-location-card-head">
+      <div><span class="detail-location-eyebrow">LOCALIZAÇÃO</span><h4>Mapa do imóvel</h4></div>
+      ${ICONS.pin}
+    </div>
+    <div class="detail-map-content" data-property-map-content>
+      <p class="detail-map-loading">Carregando localização…</p>
+    </div>
+  </section>`;
+
+  const content = mount.querySelector('[data-property-map-content]');
+  const showFallback = (message, link = mapURL) => {
+    if (!content?.isConnected) return;
+    content.innerHTML = `<div class="detail-map-fallback">
+      <span class="detail-map-fallback-pin">${ICONS.pin}</span>
+      <p>${esc(message)}</p>
+      ${link ? `<a class="detail-map-open" href="${esc(link)}" target="_blank" rel="noopener noreferrer">Ver localização no Google Maps ${ICONS.arrowRight}</a>` : ''}
+    </div>`;
+  };
+
+  if (!mapURL) {
+    showFallback('Cadastre a latitude e a longitude para mostrar a localização deste imóvel.', '');
+    return;
+  }
+  if (!/^[0-9a-f-]{36}$/i.test(String(apartment?.id)) || typeof fetch === 'undefined') {
+    showFallback('Abra o mapa para conferir a localização do imóvel.');
+    return;
+  }
+
+  const controller = new AbortController();
+  void fetch(`/api/imoveis/${encodeURIComponent(apartment.id)}/mapa-embed`, { signal: controller.signal })
+    .then(async (response) => {
+      if (!content?.isConnected || controller.signal.aborted) return;
+      if (response.status === 422) {
+        showFallback('As coordenadas ainda não aparecem no cadastro deste imóvel.', '');
+        return;
+      }
+      if (!response.ok) {
+        showFallback('Não foi possível carregar o mapa agora.');
+        return;
+      }
+      const data = await response.json();
+      let embedURL;
+      try {
+        const candidate = new URL(String(data.embedUrl ?? ''));
+        if (candidate.protocol === 'https:' && candidate.hostname === 'www.google.com' && candidate.pathname === '/maps/embed/v1/view') {
+          embedURL = candidate.href;
+        }
+      } catch {
+        // Sem chave do mapa incorporado, mantém o acesso direto ao pin.
+      }
+      if (!embedURL) {
+        showFallback('O pin exato está disponível no Google Maps.');
+        return;
+      }
+      content.innerHTML = `<div class="detail-map-frame">
+        <iframe title="Mapa da localização do imóvel no Google Maps" src="${esc(embedURL)}" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+        <span class="detail-map-center-pin" aria-hidden="true">${ICONS.pin}</span>
+      </div>
+      <a class="detail-map-open detail-map-open-inline" href="${esc(mapURL)}" target="_blank" rel="noopener noreferrer">Abrir no Google Maps ${ICONS.arrowRight}</a>`;
+    })
+    .catch(() => {
+      if (!controller.signal.aborted) showFallback('Não foi possível carregar o mapa agora.');
+    });
+  return () => controller.abort();
 }
 
 /** Monta o resumo das camas ("2 de casal · 2 beliches · 1 sofá-cama"). */
@@ -81,7 +145,6 @@ function bedsBreakdown(a) {
  */
 export function openApartmentDetail(apartment, { apartments = [] } = {}) {
   const images = propertyImages(apartment);
-  const propertyMapsURL = propertyMapURL(apartment);
   const amenities = Array.isArray(apartment.amenities) ? apartment.amenities : [];
 
   const meta = [
@@ -139,6 +202,7 @@ export function openApartmentDetail(apartment, { apartments = [] } = {}) {
             ${apartment.houseRules ? `<p class="detail-notes">${esc(apartment.houseRules)}</p>` : ''}
           </div>
         </div>
+        <div data-property-map-mount></div>
       </div>
 
       <div class="detail-info">
@@ -147,7 +211,6 @@ export function openApartmentDetail(apartment, { apartments = [] } = {}) {
             ${apartment.featured ? '<span class="badge badge-gold">Destaque</span>' : ''}
             <h3>${esc(apartment.name)}</h3>
             <p class="detail-location">${ICONS.pin}<span>${esc(apartment.location)}</span></p>
-            ${propertyMapsURL ? `<a class="detail-map-link" href="${esc(propertyMapsURL)}" target="_blank" rel="noopener noreferrer">${ICONS.pin}<span>${apartment.hasExactLocation || apartment.hideAddress ? 'Ver localização exata no Google Maps' : 'Abrir no Google Maps'}</span></a>` : ''}
             ${
               !linkedWhatsApp() && apartment.empresaNome
                 ? `<p class="detail-empresa">${ICONS.building}<span>Anunciado por ${esc(apartment.empresaNome)}</span></p>`
@@ -229,6 +292,7 @@ export function openApartmentDetail(apartment, { apartments = [] } = {}) {
         }
       : undefined,
   });
+  const stopPropertyLocation = renderPropertyLocation(modal.body.querySelector('[data-property-map-mount]'), apartment);
   const stopNearby = renderNearby(modal.body.querySelector('[data-nearby-mount]'), apartment);
 
   /* ---------- CTA Alugar → fluxo de reserva ---------- */
@@ -249,6 +313,7 @@ export function openApartmentDetail(apartment, { apartments = [] } = {}) {
   // Remove os listeners da galeria quando o modal fechar
   const originalClose = modal.close;
   modal.close = () => {
+    stopPropertyLocation?.();
     stopNearby?.();
     gallery.destroy();
     originalClose();

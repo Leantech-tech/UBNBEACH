@@ -283,6 +283,45 @@ func (a *App) redirectImovelToGoogleMaps(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, googleMapsSearchURL(destination), http.StatusFound)
 }
 
+// O mapa incorporado usa uma chave pública separada, restrita no Google Cloud
+// ao domínio do site e à Maps Embed API. A resposta nunca inclui coordenadas
+// como campos próprios do cadastro; elas só são usadas para centralizar o mapa.
+func (a *App) getImovelMapEmbed(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if a.DB() == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "banco de dados indisponível"})
+		return
+	}
+	id := r.PathValue("id")
+	if !isUUID(id) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "imóvel não encontrado"})
+		return
+	}
+	var lat, lon sql.NullFloat64
+	err := a.DB().QueryRowContext(r.Context(), `
+		SELECT latitude, longitude
+		FROM imoveis WHERE id = $1::uuid AND status = 'ATIVO'`, id).Scan(&lat, &lon)
+	if err == sql.ErrNoRows {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "imóvel não encontrado"})
+		return
+	}
+	if err != nil {
+		respondError(w, err)
+		return
+	}
+	if !lat.Valid || !lon.Valid || !validGeo(lat.Float64, lon.Float64) {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "localização do imóvel indisponível"})
+		return
+	}
+	center := fmt.Sprintf("%.7f,%.7f", lat.Float64, lon.Float64)
+	mapURL := googleMapsSearchURL(center)
+	embedURL := ""
+	if key := strings.TrimSpace(os.Getenv("GOOGLE_MAPS_EMBED_API_KEY")); key != "" {
+		embedURL = googleMapsEmbedURL(key, lat.Float64, lon.Float64)
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"embedUrl": embedURL, "mapUrl": mapURL})
+}
+
 func remoteIP(remoteAddr string) string {
 	host, _, err := net.SplitHostPort(remoteAddr)
 	if err == nil {
@@ -632,6 +671,17 @@ func googleMapsURLForPlace(placeID, name, address string, lat, lon float64) stri
 func googleMapsSearchURL(queryText string) string {
 	query := url.Values{"api": {"1"}, "query": {queryText}}
 	return "https://www.google.com/maps/search/?" + query.Encode()
+}
+
+func googleMapsEmbedURL(key string, lat, lon float64) string {
+	query := url.Values{
+		"key":      {key},
+		"center":   {fmt.Sprintf("%.7f,%.7f", lat, lon)},
+		"zoom":     {"17"},
+		"maptype":  {"roadmap"},
+		"language": {"pt-BR"},
+	}
+	return "https://www.google.com/maps/embed/v1/view?" + query.Encode()
 }
 
 func validGeo(lat, lon float64) bool {
