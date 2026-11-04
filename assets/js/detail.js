@@ -51,34 +51,10 @@ function propertyMapURL(apartment) {
     return `/api/imoveis/${encodeURIComponent(id)}/mapa`;
   }
   if (!apartment?.hideAddress && typeof apartment?.mapQuery === 'string' && apartment.mapQuery.trim()) {
-    const query = new URLSearchParams({ api: '1', query: apartment.mapQuery.trim() });
-    return `https://www.google.com/maps/search/?${query.toString()}`;
+    const query = new URLSearchParams({ api: '1', destination: apartment.mapQuery.trim(), travelmode: 'driving' });
+    return `https://www.google.com/maps/dir/?${query.toString()}`;
   }
   return '';
-}
-
-function propertyDirectionsFromPosition(embedURL, latitude, longitude) {
-  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
-      !Number.isFinite(longitude) || longitude < -180 || longitude > 180) return null;
-  try {
-    const place = new URL(embedURL);
-    if (place.protocol !== 'https:' || place.hostname !== 'www.google.com' || place.pathname !== '/maps/embed/v1/place') return null;
-    const destination = place.searchParams.get('q');
-    if (!destination) return null;
-    const origin = `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
-    const route = new URL(place.href);
-    route.pathname = '/maps/embed/v1/directions';
-    route.searchParams.delete('q');
-    route.searchParams.set('origin', origin);
-    route.searchParams.set('destination', destination);
-    route.searchParams.set('mode', 'driving');
-    route.searchParams.set('units', 'metric');
-
-    const mapsQuery = new URLSearchParams({ api: '1', origin, destination, travelmode: 'driving' });
-    return { embedURL: route.href, mapsURL: `https://www.google.com/maps/dir/?${mapsQuery.toString()}` };
-  } catch {
-    return null;
-  }
 }
 
 function renderPropertyLocation(mount, apartment) {
@@ -100,7 +76,7 @@ function renderPropertyLocation(mount, apartment) {
     content.innerHTML = `<div class="detail-map-fallback">
       <span class="detail-map-fallback-pin">${ICONS.pin}</span>
       <p>${esc(message)}</p>
-      ${link ? `<a class="detail-map-open" href="${esc(link)}" target="_blank" rel="noopener noreferrer">Ver localização no Google Maps ${ICONS.arrowRight}</a>` : ''}
+      ${link ? `<a class="detail-map-open" href="${esc(link)}" target="_blank" rel="noopener noreferrer">Traçar rota no Google Maps ${ICONS.arrowRight}</a>` : ''}
     </div>`;
   };
 
@@ -114,7 +90,6 @@ function renderPropertyLocation(mount, apartment) {
   }
 
   const controller = new AbortController();
-  let locationRequestTimer = 0;
   void fetch(`/api/imoveis/${encodeURIComponent(apartment.id)}/mapa-embed`, { signal: controller.signal })
     .then(async (response) => {
       if (!content?.isConnected || controller.signal.aborted) return;
@@ -130,61 +105,35 @@ function renderPropertyLocation(mount, apartment) {
       let embedURL;
       try {
         const candidate = new URL(String(data.embedUrl ?? ''));
-        if (candidate.protocol === 'https:' && candidate.hostname === 'www.google.com' && candidate.pathname === '/maps/embed/v1/place') {
+        if (candidate.protocol === 'https:' && candidate.hostname === 'www.openstreetmap.org' && candidate.pathname === '/export/embed.html') {
           embedURL = candidate.href;
         }
       } catch {
-        // Sem chave do mapa incorporado, mantém o acesso direto ao pin.
+        // Se o mapa falhar, mantém o link de rota do Google Maps.
       }
       if (!embedURL) {
-        showFallback('O pin exato está disponível no Google Maps.');
+        showFallback('Não foi possível carregar o mapa do imóvel agora.');
         return;
+      }
+      let routeURL = mapURL;
+      try {
+        const routeCandidate = new URL(String(data.mapUrl ?? ''), window.location.href);
+        if (routeCandidate.protocol === 'https:' && routeCandidate.hostname === 'www.google.com' && routeCandidate.pathname === '/maps/dir/') {
+          routeURL = routeCandidate.href;
+        }
+      } catch {
+        // Mantém o endpoint próprio como rota de fallback.
       }
       content.innerHTML = `<div class="detail-map-frame">
-        <iframe title="Mapa do imóvel no Google Maps" src="${esc(embedURL)}" loading="eager" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+        <iframe title="Mapa com a localização do imóvel no OpenStreetMap" src="${esc(embedURL)}" loading="eager" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
       </div>
-      <p class="detail-map-privacy-notice">Para traçar a rota, sua localização atual será compartilhada diretamente com o Google Maps, após sua autorização no navegador.</p>
-      <p class="detail-map-route-status" data-map-route-status role="status" aria-live="polite">Aguardando autorização para traçar a rota…</p>
-      <a class="detail-map-open detail-map-open-inline" data-map-open-link href="${esc(mapURL)}" target="_blank" rel="noopener noreferrer">Abrir localização no Google Maps ${ICONS.arrowRight}</a>`;
-      const iframe = content.querySelector('iframe');
-      const routeStatus = content.querySelector('[data-map-route-status]');
-      const mapOpenLink = content.querySelector('[data-map-open-link]');
-      if (typeof navigator === 'undefined' || !navigator.geolocation) {
-        routeStatus.textContent = 'Este navegador ou conexão não disponibiliza localização; o mapa continua visível sem a rota.';
-        return;
-      }
-      locationRequestTimer = window.setTimeout(() => {
-        if (!content?.isConnected || controller.signal.aborted) return;
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            if (!content?.isConnected || controller.signal.aborted) return;
-            const route = propertyDirectionsFromPosition(embedURL, position.coords.latitude, position.coords.longitude);
-            if (!route) {
-              routeStatus.textContent = 'Não foi possível traçar a rota a partir da sua localização.';
-              return;
-            }
-            iframe.src = route.embedURL;
-            iframe.title = 'Rota de carro até o imóvel no Google Maps';
-            routeStatus.textContent = 'Rota de carro traçada a partir da sua localização.';
-            mapOpenLink.href = route.mapsURL;
-            mapOpenLink.innerHTML = `Abrir rota no Google Maps ${ICONS.arrowRight}`;
-          },
-          () => {
-            if (content?.isConnected && !controller.signal.aborted) {
-              routeStatus.textContent = 'Sem acesso à localização, o mapa continua visível e a rota não foi traçada.';
-            }
-          },
-          { enableHighAccuracy: false, maximumAge: 30000, timeout: 12000 },
-        );
-      }, 350);
+      <p class="detail-map-attribution">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a></p>
+      <a class="detail-map-open detail-map-open-inline" href="${esc(routeURL)}" target="_blank" rel="noopener noreferrer">Traçar rota no Google Maps ${ICONS.arrowRight}</a>`;
     })
     .catch(() => {
       if (!controller.signal.aborted) showFallback('Não foi possível carregar o mapa agora.');
     });
-  return () => {
-    if (locationRequestTimer) window.clearTimeout(locationRequestTimer);
-    controller.abort();
-  };
+  return () => controller.abort();
 }
 
 /** Monta o resumo das camas ("2 de casal · 2 beliches · 1 sofá-cama"). */

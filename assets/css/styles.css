@@ -1553,8 +1553,8 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .detail-map-open:hover { background: var(--surface); }
 .detail-map-open svg { width: 1rem; height: 1rem; }
 .detail-map-open-inline { margin-top: 0.55rem; }
-.detail-map-privacy-notice { margin-top: 0.55rem; color: var(--muted); font-size: 0.78rem; line-height: 1.4; }
-.detail-map-route-status { margin-top: 0.3rem; color: var(--muted); font-size: 0.78rem; line-height: 1.4; }
+.detail-map-attribution { margin-top: 0.45rem; color: var(--muted); font-size: 0.74rem; line-height: 1.4; }
+.detail-map-attribution a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 
 /* Empresa anunciante (somente no catálogo da raiz do site) */
 .detail-empresa {

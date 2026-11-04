@@ -237,17 +237,34 @@ func TestGoogleMapsURLsOpenTheSelectedPlaceOrExactPin(t *testing.T) {
 	}
 }
 
-func TestGoogleMapsEmbedURLPinsExactCoordinates(t *testing.T) {
-	embedURL, err := url.Parse(googleMapsEmbedURL("public-embed-key", -23.5000012, -45.1000023))
+func TestGoogleMapsDirectionsUsesExactDestinationAndCurrentDeviceOrigin(t *testing.T) {
+	routeURL, err := url.Parse(googleMapsDirectionsURL("-23.5000012,-45.1000023"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := routeURL.Query()
+	if routeURL.Host != "www.google.com" || routeURL.Path != "/maps/dir/" {
+		t.Fatalf("unexpected Google Maps directions URL: %s", routeURL)
+	}
+	if query.Get("api") != "1" || query.Get("destination") != "-23.5000012,-45.1000023" || query.Get("travelmode") != "driving" {
+		t.Fatalf("route URL does not contain the exact destination: %s", routeURL)
+	}
+	if query.Has("origin") {
+		t.Fatalf("route URL should let Google use the visitor's current location: %s", routeURL)
+	}
+}
+
+func TestOpenStreetMapEmbedURLShowsExactMarker(t *testing.T) {
+	embedURL, err := url.Parse(openStreetMapEmbedURL(-23.5000012, -45.1000023))
 	if err != nil {
 		t.Fatal(err)
 	}
 	query := embedURL.Query()
-	if embedURL.Host != "www.google.com" || embedURL.Path != "/maps/embed/v1/place" {
-		t.Fatalf("unexpected Google Maps Embed URL: %s", embedURL)
+	if embedURL.Scheme != "https" || embedURL.Host != "www.openstreetmap.org" || embedURL.Path != "/export/embed.html" {
+		t.Fatalf("unexpected OpenStreetMap embed URL: %s", embedURL)
 	}
-	if query.Get("key") != "public-embed-key" || query.Get("q") != "-23.5000012,-45.1000023" || query.Get("zoom") != "17" {
-		t.Fatalf("map URL does not contain the exact pin and zoom: %s", embedURL)
+	if query.Get("marker") != "-23.5000012,-45.1000023" || query.Get("layer") != "mapnik" || query.Get("bbox") == "" {
+		t.Fatalf("map URL does not contain the exact pin and map bounds: %s", embedURL)
 	}
 }
 

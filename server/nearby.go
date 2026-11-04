@@ -232,9 +232,9 @@ func (a *App) listNearbyPlaces(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// O pin é aberto sob demanda em um link do Google Maps. Isso evita devolver
-// latitude e longitude no catálogo público, mas permite a localização exata
-// solicitada para cada imóvel com coordenadas cadastradas.
+// A rota usa o pin exato em um Google Maps URL, sem publicar coordenadas como
+// campos do catálogo. Sem origem explícita, o Google usa a localização do
+// aparelho quando disponível.
 func (a *App) redirectImovelToGoogleMaps(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if a.DB() == nil {
@@ -280,12 +280,12 @@ func (a *App) redirectImovelToGoogleMaps(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "localização exata indisponível"})
 		return
 	}
-	http.Redirect(w, r, googleMapsSearchURL(destination), http.StatusFound)
+	http.Redirect(w, r, googleMapsDirectionsURL(destination), http.StatusFound)
 }
 
-// O mapa incorporado usa uma chave pública separada, restrita no Google Cloud
-// ao domínio do site e à Maps Embed API. A resposta nunca inclui coordenadas
-// como campos próprios do cadastro; elas só são usadas para centralizar o mapa.
+// O mapa do imóvel é incorporado pelo export oficial do OpenStreetMap, sem
+// chave. A rota é aberta no Google Maps por URL, também sem chave. As
+// coordenadas continuam fora dos campos JSON do catálogo.
 func (a *App) getImovelMapEmbed(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if a.DB() == nil {
@@ -314,11 +314,8 @@ func (a *App) getImovelMapEmbed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	center := fmt.Sprintf("%.7f,%.7f", lat.Float64, lon.Float64)
-	mapURL := googleMapsSearchURL(center)
-	embedURL := ""
-	if key := strings.TrimSpace(os.Getenv("GOOGLE_MAPS_EMBED_API_KEY")); key != "" {
-		embedURL = googleMapsEmbedURL(key, lat.Float64, lon.Float64)
-	}
+	mapURL := googleMapsDirectionsURL(center)
+	embedURL := openStreetMapEmbedURL(lat.Float64, lon.Float64)
 	writeJSON(w, http.StatusOK, map[string]string{"embedUrl": embedURL, "mapUrl": mapURL})
 }
 
@@ -673,16 +670,26 @@ func googleMapsSearchURL(queryText string) string {
 	return "https://www.google.com/maps/search/?" + query.Encode()
 }
 
-func googleMapsEmbedURL(key string, lat, lon float64) string {
-	location := fmt.Sprintf("%.7f,%.7f", lat, lon)
+func googleMapsDirectionsURL(destination string) string {
 	query := url.Values{
-		"key":      {key},
-		"q":        {location},
-		"zoom":     {"17"},
-		"maptype":  {"roadmap"},
-		"language": {"pt-BR"},
+		"api":         {"1"},
+		"destination": {destination},
+		"travelmode":  {"driving"},
 	}
-	return "https://www.google.com/maps/embed/v1/place?" + query.Encode()
+	return "https://www.google.com/maps/dir/?" + query.Encode()
+}
+
+func openStreetMapEmbedURL(lat, lon float64) string {
+	minLat := math.Max(-90, lat-0.006)
+	maxLat := math.Min(90, lat+0.006)
+	minLon := math.Max(-180, lon-0.01)
+	maxLon := math.Min(180, lon+0.01)
+	query := url.Values{
+		"bbox":   {fmt.Sprintf("%.7f,%.7f,%.7f,%.7f", minLon, minLat, maxLon, maxLat)},
+		"layer":  {"mapnik"},
+		"marker": {fmt.Sprintf("%.7f,%.7f", lat, lon)},
+	}
+	return "https://www.openstreetmap.org/export/embed.html?" + query.Encode()
 }
 
 func validGeo(lat, lon float64) bool {
