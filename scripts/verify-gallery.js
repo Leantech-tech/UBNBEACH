@@ -44,23 +44,26 @@ async function main() {
   assert.equal(mount.querySelector('[data-thumb="0"]').getAttribute('aria-pressed'), 'false');
   mount.querySelector('[data-gallery-open]').click();
   const document = window.document;
-  assert.equal(document.querySelector('.gallery-lightbox-header-title').textContent, 'Galeria do imóvel');
+  assert.equal(document.querySelector('.gallery-lightbox-header-title').textContent, 'Tour por fotos');
   assert.equal(document.querySelector('.gallery-lightbox-header-count').textContent, '15 fotos');
   assert.deepEqual([...document.querySelectorAll('.gallery-photo-group h3')].map((item) => item.textContent), [
-    'Quarto 1', 'Cozinha', 'Sala de estar', 'Outras fotos',
+    'Sala de estar', 'Cozinha', 'Quarto 1', 'Outras fotos',
   ]);
   const sections = [...document.querySelectorAll('.gallery-photo-group')];
-  assert.deepEqual(sections.map((section) => section.querySelectorAll('.gallery-photo').length), [5, 3, 4, 1]);
-  assert.equal(sections[0].querySelector('.gallery-photo-grid').classList.contains('has-5'), true);
+  assert.equal(document.querySelectorAll('.gallery-room-nav-item').length, 4);
+  assert.deepEqual(sections.map((section) => section.querySelectorAll('.gallery-photo').length), [4, 3, 5, 1]);
+  assert.equal(sections[0].querySelector('.gallery-photo-grid').classList.contains('has-4'), true);
   assert.equal(sections[1].querySelector('.gallery-photo-grid').classList.contains('has-3'), true);
-  assert.equal(sections[2].querySelector('.gallery-photo-grid').classList.contains('has-4'), true);
+  assert.equal(sections[2].querySelector('.gallery-photo-grid').classList.contains('has-5'), true);
   assert.equal(sections[3].querySelector('.gallery-photo-grid').classList.contains('has-1'), true);
-  assert.equal(sections[0].querySelectorAll('.gallery-photo-label')[0].textContent, 'Quarto 1');
+  assert.equal(sections[2].querySelectorAll('.gallery-photo-label')[0].textContent, 'Quarto 1');
+  assert.equal(sections[0].querySelector('.gallery-photo-group-description').textContent, 'Ambiente de descanso e convivência do imóvel.');
+  assert.equal(sections[2].querySelector('.gallery-photo-group-description').textContent.includes('Empresa e bairro'), false);
   assert.equal(document.querySelector('.gallery-lightbox').textContent.includes('Empresa e bairro'), false);
-  assert.equal(sections[0].querySelectorAll('.gallery-show-all').length, 1);
+  assert.equal(sections[2].querySelectorAll('.gallery-show-all').length, 1);
   assert.equal(sections[1].querySelectorAll('.gallery-show-all').length, 0);
 
-  sections[0].querySelector('.gallery-show-all').click();
+  sections[2].querySelector('.gallery-show-all').click();
   assert.equal(document.querySelector('[data-viewer-count]').textContent, '1 / 7');
   for (let index = 0; index < 6; index++) {
     document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
@@ -84,6 +87,18 @@ async function main() {
   assert.equal(document.querySelector('.gallery-lightbox'), null);
   gallery.destroy();
 
+  let bookingRequested = false;
+  const bookingGallery = window.GalleryTest.createGallery(mount, ['/quarto.jpg'], {
+    apartment: { id: 'bookable', name: 'Imóvel disponível', available: true },
+    onBook: () => { bookingRequested = true; },
+  });
+  mount.querySelector('[data-gallery-open]').click();
+  assert.ok(document.querySelector('.gallery-mobile-cta button').textContent.includes('Conferir disponibilidade'));
+  document.querySelector('[data-gallery-book]').click();
+  assert.equal(bookingRequested, true);
+  assert.equal(document.querySelector('.gallery-lightbox'), null);
+  bookingGallery.destroy();
+
   const knownRoom = window.GalleryTest.createGallery(mount, [
     'https://apilocacao.leantechautomacao.com.br/api/v1/storage/object?url=https%3A%2F%2Fs3.leantechautomacao.com.br%2Flocacao%2Fimoveis%2F626febeda7ce000000000000000000000000.jpg',
     '/46b20a1ffaf2000000000000000000000000.jpg',
@@ -94,6 +109,35 @@ async function main() {
   assert.equal(identified.querySelectorAll('.gallery-photo').length, 2);
   assert.equal(identified.querySelector('.gallery-photo-grid').classList.contains('has-2'), true);
   knownRoom.destroy();
+
+  const recantoRoom = window.GalleryTest.createGallery(mount, [
+    '/ebeea9db0487000000000000000000000000.jpg',
+  ]);
+  mount.querySelector('[data-gallery-open]').click();
+  const describedRoom = document.querySelector('.gallery-photo-group');
+  assert.equal(describedRoom.querySelector('h3').textContent, 'Quarto 1');
+  assert.equal(
+    describedRoom.querySelector('.gallery-photo-group-description').textContent,
+    'Cama de casal · Beliche · Ar-condicionado · Cortinas blackout · Cabides · Ferro de passar · Local para guardar as roupas · Ventilador de teto'
+  );
+  recantoRoom.destroy();
+
+  const recantoBathroom = window.GalleryTest.createGallery(mount, ['/cb0a8a07d3e2000000000000000000000000.jpg']);
+  mount.querySelector('[data-gallery-open]').click();
+  const describedBathroom = document.querySelector('.gallery-photo-group');
+  assert.equal(describedBathroom.querySelector('h3').textContent, 'Banheiro completo');
+  assert.equal(describedBathroom.querySelector('.gallery-photo-group-description').textContent, 'Secador de cabelo.');
+  recantoBathroom.destroy();
+
+  const genericOutside = window.GalleryTest.createGallery(mount, ['/706fdd2f7bbb000000000000000000000000.jpg']);
+  mount.querySelector('[data-gallery-open]').click();
+  const outsideRoom = document.querySelector('.gallery-photo-group');
+  assert.equal(outsideRoom.querySelector('h3').textContent, 'Varanda');
+  assert.equal(
+    outsideRoom.querySelector('.gallery-photo-group-description').textContent,
+    'Fotos da área externa e dos espaços ao ar livre.'
+  );
+  genericOutside.destroy();
   dom.window.close();
   console.log('PASS galeria por cômodo, mosaico, visualizador e outros imóveis');
 }

@@ -2,16 +2,16 @@
 // Chaves: prefixo estável do arquivo. Novas fotos sem identificação ficam isoladas.
 const rooms = [
   // Recanto Uba
-  { label: "Varanda e churrasqueira", files: ["dc27b04735cb", "1987977bbe23", "ca2d8e296d29", "57ed3fe69cfb", "54b1cc631055"] },
-  { label: "Piscina", files: ["fe58ea432624", "e7a075e9e95e", "df02cdee1665", "b554ac5c6c94", "ce745c6072d2"] },
-  { label: "Localização", files: ["1b9a5e676925", "e188806ebf4f"] },
-  { label: "Sala de estar", files: ["7bfea27b5b27", "9066f5c6a737", "f1378b9d8097", "5cf792fe8fdb"] },
-  { label: "Cozinha", files: ["a11fe19e1321", "7b01803a5f0d", "37e68af6c0fc", "717bf240b23d"] },
-  { label: "Área de serviço", files: ["9b4d74eb261d"] },
-  { label: "Quarto com beliches", files: ["ebeea9db0487", "19b24f80b4f5", "9cdc7fb9c6b5", "9d0b4850e28a", "8901da4ed47f"] },
-  { label: "Sala de jantar", files: ["bf52056cecc6", "ae5fcb39c396"] },
-  { label: "Quarto de casal", files: ["4a20b3223d8e", "5e88f80c49e4", "f59bdd5a3ce5"] },
-  { label: "Banheiro", files: ["cb0a8a07d3e2"] },
+  { label: "Varanda e churrasqueira", description: "Varanda com churrasqueira.", files: ["dc27b04735cb", "1987977bbe23", "ca2d8e296d29", "57ed3fe69cfb", "54b1cc631055"] },
+  { label: "Piscina", description: "Área de lazer ao ar livre.", files: ["fe58ea432624", "e7a075e9e95e", "df02cdee1665", "b554ac5c6c94", "ce745c6072d2"] },
+  { label: "Localização", description: "A cerca de 600 m da praia.", files: ["1b9a5e676925", "e188806ebf4f"] },
+  { label: "Sala de estar", description: "Sofá · Conexão Ethernet · Ventilador de teto", files: ["7bfea27b5b27", "9066f5c6a737", "f1378b9d8097", "5cf792fe8fdb"] },
+  { label: "Cozinha completa", description: "Assadeira · Café · Cafeteira · Fogão · Forno · Freezer · Itens básicos de cozinha · Liquidificador · Pratos e talheres · Micro-ondas · Refrigerador · Torradeira · Utensílios para churrasco", files: ["a11fe19e1321", "7b01803a5f0d", "37e68af6c0fc", "717bf240b23d"] },
+  { label: "Área de lavanderia", description: "Máquina de lavar roupa.", files: ["9b4d74eb261d"] },
+  { label: "Quarto com beliches", description: "Cama de casal · Beliche · Ar-condicionado · Cortinas blackout · Cabides · Ferro de passar · Local para guardar as roupas · Ventilador de teto", files: ["ebeea9db0487", "19b24f80b4f5", "9cdc7fb9c6b5", "9d0b4850e28a", "8901da4ed47f"] },
+  { label: "Área de jantar", description: "Mesa e cadeiras para refeições.", files: ["bf52056cecc6", "ae5fcb39c396"] },
+  { label: "Quarto de casal", description: "Cama de casal · Beliche · Ar-condicionado · Cortinas blackout · Cabides · Cercadinho portátil · Ventilador de teto", files: ["4a20b3223d8e", "5e88f80c49e4", "f59bdd5a3ce5"] },
+  { label: "Banheiro completo", description: "Secador de cabelo.", files: ["cb0a8a07d3e2"] },
   // Casa Carvalho
   { label: "Varanda", files: ["706fdd2f7bbb", "560fe27b03e2", "51050e0de16b", "4f8086acf0ab"] },
   { label: "Banheiro", files: ["756227cd23d2", "c612c023e828"] },
@@ -106,5 +106,9 @@ const rooms = [
 ];
 
 export const PHOTO_ROOMS = Object.fromEntries(
-  rooms.flatMap((room, index) => room.files.map((file) => [file, { key: `room-${index}`, label: room.label }]))
+  rooms.flatMap((room, index) => room.files.map((file) => [file, {
+    key: `room-${index}`,
+    label: room.label,
+    description: room.description || '',
+  }]))
 );

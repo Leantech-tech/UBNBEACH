@@ -9,19 +9,42 @@ const esc = (value) =>
     .replaceAll('"', '&quot;');
 
 const PHOTO_GROUPS = [
-  { key: 'bedrooms', label: 'Quarto', terms: ['quarto', 'dormitorio', 'suite'] },
+  { key: 'bedrooms', label: 'Quarto', terms: ['quarto', 'dormitorio', 'suite', 'studio'] },
   { key: 'bathrooms', label: 'Banheiro', terms: ['banheiro', 'lavabo'] },
   { key: 'kitchen', label: 'Cozinha', terms: ['cozinha'] },
   { key: 'dining', label: 'Sala de jantar', terms: ['sala de jantar', 'jantar'] },
   { key: 'living', label: 'Sala de estar', terms: ['sala de estar', 'sala', 'estar'] },
   { key: 'outside', label: 'Área externa', terms: ['area externa', 'varanda', 'sacada', 'piscina', 'quintal', 'jardim', 'fachada', 'terraco', 'churrasqueira', 'patio'] },
   { key: 'service', label: 'Área de serviço', terms: ['area de servico', 'lavanderia'] },
-  { key: 'shared', label: 'Áreas comuns', terms: ['area comum', 'areas comuns', 'elevador', 'sala de jogos', 'sauna', 'academia', 'recepcao'] },
-  { key: 'access', label: 'Escadas e acessos', terms: ['escada', 'corredor', 'hall', 'entrada'] },
+  { key: 'shared', label: 'Áreas comuns', terms: ['area comum', 'areas comuns', 'elevador', 'sala de jogos', 'sala de convivencia', 'espaco de trabalho', 'sauna', 'academia', 'recepcao'] },
+  { key: 'access', label: 'Escadas e acessos', terms: ['escada', 'corredor', 'hall', 'entrada', 'acesso'] },
   { key: 'parking', label: 'Garagem', terms: ['garagem', 'estacionamento'] },
   { key: 'location', label: 'Localização', terms: ['localizacao', 'mapa', 'praia proxima'] },
   { key: 'other', label: 'Outras fotos', terms: [] },
 ];
+
+const GALLERY_ORDER = ['living', 'kitchen', 'dining', 'bedrooms', 'bathrooms', 'service', 'outside', 'shared', 'access', 'parking', 'location', 'other'];
+
+const ROOM_DESCRIPTION_DEFAULTS = {
+  bedrooms: 'Confira as camas e os detalhes deste quarto nas fotos.',
+  bathrooms: 'Veja os acabamentos e os itens do banheiro nas fotos.',
+  kitchen: 'Explore a bancada, os armários e os equipamentos da cozinha.',
+  dining: 'Espaço dedicado às refeições durante a estadia.',
+  living: 'Ambiente de descanso e convivência do imóvel.',
+  outside: 'Fotos da área externa e dos espaços ao ar livre.',
+  service: 'Detalhes da área de serviço e lavanderia.',
+  shared: 'Conheça os espaços de uso comum do empreendimento.',
+  access: 'Acessos e áreas de circulação do imóvel.',
+  parking: 'Área de estacionamento do imóvel.',
+  location: 'Registros da localização e da região.',
+  other: 'Fotos complementares do imóvel.',
+};
+
+const GENERIC_ROOM_LABELS = new Set([
+  'quarto', 'banheiro', 'cozinha', 'sala de jantar', 'sala de estar',
+  'area de servico', 'area de lavanderia', 'area externa', 'areas comuns',
+  'acesso', 'garagem', 'localizacao', 'outras fotos',
+]);
 
 function normalizeImages(images) {
   return (Array.isArray(images) ? images : [])
@@ -53,6 +76,47 @@ function photoFileKey(url) {
   }
   const filename = filePath.split('/').pop()?.split(/[?#]/)[0] || '';
   return filename.match(/^([a-f0-9]{12})[a-f0-9]*\.(?:jpe?g|png|webp)$/i)?.[1]?.toLowerCase();
+}
+
+function captionDescription(images, room) {
+  for (const image of images) {
+    const caption = image.caption.trim();
+    if (!caption || /empresa e bairro/i.test(caption)) continue;
+    const details = caption.match(/\s+(?:-|–|—|:)\s+(.+)$/)?.[1]?.trim();
+    if (details) {
+      if (/empresa e bairro/i.test(details)) continue;
+      const normalizedDetails = normalizedCaption(details);
+      if (normalizedDetails === normalizedCaption(room.label) || normalizedDetails === normalizedCaption(room.title)) continue;
+      return details;
+    }
+    const normalized = normalizedCaption(caption);
+    if (normalized === normalizedCaption(room.label) || normalized === normalizedCaption(room.title)) continue;
+    if (!GENERIC_ROOM_LABELS.has(normalized) && !/^(quarto|dormitorio|suite|banheiro|lavabo|cozinha|sala|area de servico)(?: \d+)?$/.test(normalized)) {
+      return caption;
+    }
+  }
+  return '';
+}
+
+function describeRoom(room) {
+  const mappedDescription = room.description?.trim();
+  if (mappedDescription) return mappedDescription;
+
+  const caption = captionDescription(room.images, room);
+  if (caption) return caption;
+
+  const label = room.label.trim();
+  const normalizedLabel = normalizedCaption(label);
+  if (
+    normalizedLabel &&
+    normalizedLabel !== normalizedCaption(room.title) &&
+    !GENERIC_ROOM_LABELS.has(normalizedLabel) &&
+    !/^(quarto|banheiro|suite) \d+$/.test(normalizedLabel)
+  ) {
+    return `${label}.`;
+  }
+
+  return ROOM_DESCRIPTION_DEFAULTS[room.category] || ROOM_DESCRIPTION_DEFAULTS.other;
 }
 
 function roomFromCaption(caption) {
@@ -99,11 +163,22 @@ function groupByRoom(images) {
       group.terms.some((term) => normalizedCaption(room?.label || '').includes(term))
     )?.key || 'other';
     const key = room?.key || 'unidentified';
-    if (!rooms.has(key)) rooms.set(key, { key, label: room?.label || 'Outras fotos', category, firstIndex: index, images: [] });
+    if (!rooms.has(key)) rooms.set(key, {
+      key,
+      label: room?.label || 'Outras fotos',
+      description: room?.description || knownRoom?.description || '',
+      category,
+      firstIndex: index,
+      images: [],
+    });
+    else if (!rooms.get(key).description && (room?.description || knownRoom?.description)) {
+      rooms.get(key).description = room?.description || knownRoom.description;
+    }
     rooms.get(key).images.push(image);
   });
+  const order = new Map(GALLERY_ORDER.map((key, index) => [key, index]));
   const sorted = [...rooms.values()].sort((a, b) =>
-    PHOTO_GROUPS.findIndex((group) => group.key === a.category) - PHOTO_GROUPS.findIndex((group) => group.key === b.category)
+    (order.get(a.category) ?? GALLERY_ORDER.length) - (order.get(b.category) ?? GALLERY_ORDER.length)
     || a.firstIndex - b.firstIndex
   );
   const totals = new Map();
@@ -124,9 +199,12 @@ function groupByRoom(images) {
         if (!/^quarto\s+\d+$/i.test(title)) title = `Quarto ${bedroomPosition}`;
       }
     } else if (room.category === 'bathrooms' && !/^lavabo/i.test(title)) {
-      if (!/^banheiro\s+\d+$/i.test(title)) title = totals.get('bathrooms') > 1 ? `Banheiro ${position}` : 'Banheiro';
+      if (/^banheiro(?:\s+\d+)?$/i.test(title) && !/^banheiro\s+\d+$/i.test(title)) {
+        title = totals.get('bathrooms') > 1 ? `Banheiro ${position}` : 'Banheiro';
+      }
     }
-    return { ...room, title };
+    const titledRoom = { ...room, title };
+    return { ...titledRoom, description: describeRoom(titledRoom) };
   });
 }
 
@@ -152,7 +230,7 @@ function groupByRoom(images) {
  *  @returns {{ show: (i: number) => void, destroy: () => void }}
  * ============================================================
  */
-export function createGallery(mount, images, { alt = 'Foto', apartment = {}, otherApartments = [], onSelectApartment, ratio } = {}) {
+export function createGallery(mount, images, { alt = 'Foto', apartment = {}, otherApartments = [], onSelectApartment, onBook, ratio } = {}) {
   const normalized = normalizeImages(images);
   const list = normalized.length ? normalized : [{ url: '', caption: '' }];
   const hasPhotos = normalized.length > 0;
@@ -253,6 +331,8 @@ export function createGallery(mount, images, { alt = 'Foto', apartment = {}, oth
     viewer.remove();
     viewer = null;
     lightbox.querySelector('.gallery-lightbox-panel').inert = false;
+    const bookingAction = lightbox.querySelector('.gallery-mobile-cta');
+    if (bookingAction) bookingAction.inert = false;
     viewerTrigger?.focus({ preventScroll: true });
     viewerTrigger = null;
   };
@@ -295,6 +375,8 @@ export function createGallery(mount, images, { alt = 'Foto', apartment = {}, oth
         ${group.images.length > 1 ? `<button type="button" class="gallery-viewer-arrow" data-viewer-step="1" aria-label="Próxima foto">${ICONS.arrowRight}</button>` : ''}
       </div>`;
     lightbox.querySelector('.gallery-lightbox-panel').inert = true;
+    const bookingAction = lightbox.querySelector('.gallery-mobile-cta');
+    if (bookingAction) bookingAction.inert = true;
     lightbox.appendChild(viewer);
     viewer.querySelector('[data-viewer-close]').addEventListener('click', closeViewer);
     viewer.querySelectorAll('[data-viewer-step]').forEach((button) =>
@@ -368,9 +450,18 @@ export function createGallery(mount, images, { alt = 'Foto', apartment = {}, oth
       <div class="gallery-lightbox-panel">
         <header class="gallery-lightbox-header">
           <button type="button" class="gallery-lightbox-close" data-lightbox-close aria-label="Voltar aos detalhes do imóvel">${ICONS.arrowLeft}<span>Voltar</span></button>
-          <span class="gallery-lightbox-header-title">Galeria do imóvel</span>
+          <span class="gallery-lightbox-header-title">Tour por fotos</span>
           <span class="gallery-lightbox-header-count">${list.length} ${list.length === 1 ? 'foto' : 'fotos'}</span>
         </header>
+        <nav class="gallery-room-nav" aria-label="Navegar pelos ambientes">
+          ${grouped.map((group, groupIndex) => {
+            const cover = group.images[0]?.url || '';
+            return `<button type="button" class="gallery-room-nav-item" data-room-nav="${groupIndex}" aria-label="Ir para ${esc(group.title)}">
+              ${cover ? `<img src="${esc(cover)}" alt="" loading="lazy" decoding="async" />` : ''}
+              <span>${esc(group.title)}</span>
+            </button>`;
+          }).join('')}
+        </nav>
         <main class="gallery-lightbox-content" aria-label="Fotos organizadas por cômodo">
           ${grouped
             .map(
@@ -379,6 +470,7 @@ export function createGallery(mount, images, { alt = 'Foto', apartment = {}, oth
                   <span class="gallery-photo-group-index">${String(groupIndex + 1).padStart(2, '0')}</span>
                   <div class="gallery-photo-group-heading">
                     <h3>${esc(group.title)}</h3>
+                    <p class="gallery-photo-group-description">${esc(group.description)}</p>
                   </div>
                   <span class="gallery-photo-group-count">${group.images.length} ${group.images.length === 1 ? 'foto' : 'fotos'}</span>
                 </div>
@@ -407,12 +499,22 @@ export function createGallery(mount, images, { alt = 'Foto', apartment = {}, oth
             <div class="gallery-related-track" data-related-track>${relatedCards}</div>
           </div>
         </aside>` : ''}
-      </div>`;
+      </div>
+      ${onBook ? `<div class="gallery-mobile-cta"><button type="button" data-gallery-book>Conferir disponibilidade ${ICONS.arrowRight}</button></div>` : ''}`;
     previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     document.body.appendChild(lightbox);
     lightbox.querySelectorAll('img').forEach(guardImage);
     lightbox.querySelector('[data-lightbox-close]').addEventListener('click', closeLightbox);
+    lightbox.querySelectorAll('[data-room-nav]').forEach((button) => {
+      button.addEventListener('click', () => {
+        lightbox.querySelectorAll('.gallery-photo-group')[Number(button.dataset.roomNav)]?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+      });
+    });
+    lightbox.querySelector('[data-gallery-book]')?.addEventListener('click', () => {
+      closeLightbox();
+      onBook?.();
+    });
     lightbox.querySelectorAll('.gallery-photo').forEach((button) => {
       button.addEventListener('click', () =>
         openViewer(Number(button.dataset.room), Number(button.dataset.photo), button)
@@ -433,7 +535,9 @@ export function createGallery(mount, images, { alt = 'Foto', apartment = {}, oth
       button.addEventListener('click', () => {
         const track = lightbox.querySelector('[data-related-track]');
         const direction = Number(button.dataset.relatedScroll);
-        track?.scrollBy?.({ top: direction * Math.max(track.clientHeight * 0.8, 160), behavior: 'smooth' });
+        const horizontal = window.matchMedia?.('(max-width: 760px)').matches || false;
+        const distance = Math.max((horizontal ? track?.clientWidth : track?.clientHeight) * 0.8 || 0, 160);
+        track?.scrollBy?.({ left: horizontal ? direction * distance : 0, top: horizontal ? 0 : direction * distance, behavior: 'smooth' });
       });
     });
     document.addEventListener('keydown', onLightboxKey, true);

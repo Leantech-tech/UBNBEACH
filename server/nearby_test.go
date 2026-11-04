@@ -6,69 +6,74 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
-	"time"
 )
 
-type nearbyRoundTrip func(*http.Request) (*http.Response, error)
+type roundTripFunc func(*http.Request) (*http.Response, error)
 
-func (fn nearbyRoundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return fn(r) }
+func (fn roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return fn(r) }
 
-func TestGoogleNearbyUsesInternalCenterAndTenKilometerRadius(t *testing.T) {
-	transport := nearbyRoundTrip(func(r *http.Request) (*http.Response, error) {
-		if !strings.HasSuffix(r.URL.Path, "/places:searchNearby") || r.Method != http.MethodPost {
-			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+func TestOverpassQueryCoversRequestedPlaces(t *testing.T) {
+	query := overpassQuery(-23.5, -45.1)
+	for _, part := range []string{"around:10000,-23.5000000,-45.1000000", "pharmacy", "supermarket", "restaurant", "fast_food", "beach", "waterfall", "out center"} {
+		if !strings.Contains(query, part) {
+			t.Errorf("query does not contain %q", part)
 		}
-		if r.Header.Get("X-Goog-Api-Key") != "test-key" {
-			t.Error("server key was not passed to Google")
-		}
-		if strings.Contains(r.Header.Get("X-Goog-FieldMask"), "nextPageToken") {
-			t.Error("nearby field mask contains unsupported paging field")
-		}
-		var body struct {
-			IncludedTypes       []string `json:"includedTypes"`
-			LocationRestriction struct {
-				Circle struct {
-					Center struct{ Latitude, Longitude float64 } `json:"center"`
-					Radius float64                               `json:"radius"`
-				} `json:"circle"`
-			} `json:"locationRestriction"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Fatal(err)
-		}
-		if body.LocationRestriction.Circle.Radius != 10000 || body.LocationRestriction.Circle.Center.Latitude != -23.5 || body.LocationRestriction.Circle.Center.Longitude != -45.1 {
-			t.Errorf("wrong search circle: %+v", body.LocationRestriction.Circle)
-		}
-		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"places":[{"id":"near","displayName":{"text":"Praia próxima"},"location":{"latitude":-23.501,"longitude":-45.1}},{"id":"far","displayName":{"text":"Praia longe"},"location":{"latitude":-23.3,"longitude":-45.1}}]}`))}, nil
-	})
-	service := newNearbyService("test-key")
-	service.client = &http.Client{Transport: transport}
-	places, limited, err := service.search(t.Context(), -23.5, -45.1, nearbySearch{category: "Praias", icon: "beach", types: []string{"beach"}})
-	if err != nil || limited || len(places) != 1 || places[0].ID != "near" {
-		t.Fatalf("places=%+v limited=%v err=%v", places, limited, err)
 	}
 }
 
-func TestGoogleTextSearchFiltersRectangleToCircle(t *testing.T) {
-	transport := nearbyRoundTrip(func(r *http.Request) (*http.Response, error) {
-		if !strings.HasSuffix(r.URL.Path, "/places:searchText") || !strings.Contains(r.Header.Get("X-Goog-FieldMask"), "nextPageToken") {
-			t.Errorf("unexpected text search: %s %s", r.URL.Path, r.Header.Get("X-Goog-FieldMask"))
+func TestNormalizePlaceCategoriesAndRadius(t *testing.T) {
+	tests := []struct {
+		name         string
+		tags         map[string]string
+		lat          float64
+		wantCategory string
+		want         bool
+	}{
+		{"pharmacy", map[string]string{"name": "Farmácia Central", "amenity": "pharmacy"}, -23.5, "Farmácias", true},
+		{"pizza", map[string]string{"name": "Casa da Pizza", "amenity": "restaurant", "cuisine": "pizza"}, -23.5, "Pizzarias", true},
+		{"burger", map[string]string{"name": "Burger", "amenity": "fast_food", "cuisine": "burger"}, -23.5, "Hamburguerias", true},
+		{"market", map[string]string{"name": "Mercado", "shop": "supermarket"}, -23.5, "Mercados", true},
+		{"beach", map[string]string{"name": "Praia", "natural": "beach"}, -23.5, "Praias", true},
+		{"waterfall", map[string]string{"name": "Queda", "waterway": "waterfall"}, -23.5, "Cachoeiras", true},
+		{"outside", map[string]string{"name": "Longe", "amenity": "pharmacy"}, -23.3, "", false},
+		{"unnamed", map[string]string{"amenity": "pharmacy"}, -23.5, "", false},
+		{"private", map[string]string{"name": "Privado", "amenity": "restaurant", "access": "private"}, -23.5, "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			place, ok := normalizePlace(overpassElement{Type: "node", ID: 1, Lat: tt.lat, Lon: -45.1, Tags: tt.tags}, -23.5, -45.1)
+			if ok != tt.want || place.Category != tt.wantCategory {
+				t.Fatalf("got (%q, %v), want (%q, %v)", place.Category, ok, tt.wantCategory, tt.want)
+			}
+		})
+	}
+}
+
+func TestNearbyServiceCachesAndFilters(t *testing.T) {
+	var calls atomic.Int32
+	transport := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		calls.Add(1)
+		if r.Method != http.MethodPost || !strings.Contains(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded") {
+			t.Errorf("unexpected request: %s %s", r.Method, r.Header.Get("Content-Type"))
 		}
-		var body map[string]any
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Fatal(err)
-		}
-		if body["textQuery"] != "cachoeira" || body["locationRestriction"] == nil {
-			t.Errorf("wrong text search: %+v", body)
-		}
-		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"places":[{"id":"inside","displayName":{"text":"Cachoeira"},"location":{"latitude":-23.51,"longitude":-45.1}},{"id":"outside","displayName":{"text":"Outra"},"location":{"latitude":-23.4,"longitude":-45.01}}]}`))}, nil
+		body, _ := json.Marshal(map[string]any{"elements": []map[string]any{
+			{"type": "node", "id": 1, "lat": -23.5, "lon": -45.1, "tags": map[string]string{"name": "Farmácia", "amenity": "pharmacy"}},
+			{"type": "way", "id": 2, "center": map[string]float64{"lat": -23.6, "lon": -45.1}, "tags": map[string]string{"name": "Fora", "natural": "beach"}},
+		}})
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(string(body)))}, nil
 	})
-	service := newNearbyService("test-key")
+	service := newNearbyService("https://overpass.example/api/interpreter")
 	service.client = &http.Client{Transport: transport}
-	places, _, err := service.search(t.Context(), -23.5, -45.1, nearbySearch{category: "Cachoeiras", icon: "waterfall", text: "cachoeira"})
-	if err != nil || len(places) != 1 || places[0].ID != "inside" {
-		t.Fatalf("places=%+v err=%v", places, err)
+	for range 2 {
+		places, err := service.places(t.Context(), -23.5, -45.1)
+		if err != nil || len(places) != 1 || places[0].Category != "Farmácias" {
+			t.Fatalf("places = %+v, err = %v", places, err)
+		}
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("Overpass called %d times, want 1", calls.Load())
 	}
 }
 
@@ -81,27 +86,27 @@ func TestNearbyResponseCannotBePubliclyCached(t *testing.T) {
 	}
 }
 
-func TestHiddenPropertyOmitsDistanceAndCoordinates(t *testing.T) {
-	places := []nearbyPlace{{ID: "near", Name: "Z", DistanceKm: 0.1, Latitude: -23.5, Longitude: -45.1}, {ID: "far", Name: "A", DistanceKm: 9.5}}
+func TestHiddenPropertyOmitsDistanceAndOrder(t *testing.T) {
+	places := []nearbyPlace{
+		{ID: "near", Name: "Z", DistanceKm: 0.1},
+		{ID: "far", Name: "A", DistanceKm: 9.5},
+	}
 	public := publicNearbyPlaces(places, true)
-	data, _ := json.Marshal(public)
-	if public[0].ID != "far" || strings.Contains(string(data), "distanceKm") || strings.Contains(string(data), "latitude") || strings.Contains(string(data), "longitude") {
-		t.Fatalf("hidden response exposes location: %s", data)
+	if public[0].ID != "far" || public[0].DistanceKm != 0 || public[1].DistanceKm != 0 {
+		t.Fatalf("hidden response exposes distance or distance order: %+v", public)
+	}
+	if places[0].DistanceKm != 0.1 {
+		t.Fatal("internal distance was modified")
 	}
 }
 
-func TestNearbyRateLimitPreventsRepeatedChargedSearches(t *testing.T) {
-	service := newNearbyService("test-key")
-	now := time.Now()
-	for i := 0; i < 5; i++ {
-		if !service.allowRequest("127.0.0.1", now) {
-			t.Fatalf("request %d should be allowed", i+1)
-		}
+func TestMergeNearbyPlacesKeepsRegisteredFallbackAndDeduplicates(t *testing.T) {
+	registered := []nearbyPlace{{ID: "local", Name: "Mercado", Latitude: -23.5, Longitude: -45.1, DistanceKm: 0.2, Source: "registered"}}
+	if got := mergeNearbyPlaces(nil, registered); len(got) != 1 || got[0].Source != "registered" {
+		t.Fatalf("registered fallback was lost: %+v", got)
 	}
-	if service.allowRequest("127.0.0.1", now) {
-		t.Fatal("sixth request from same IP should be limited")
-	}
-	if !service.allowRequest("127.0.0.1", now.Add(time.Hour+time.Second)) {
-		t.Fatal("request should be allowed after the window ends")
+	osm := []nearbyPlace{{ID: "osm", Name: "mercado", Latitude: -23.5001, Longitude: -45.1, DistanceKm: 0.21, Source: "osm"}}
+	if got := mergeNearbyPlaces(osm, registered); len(got) != 1 || got[0].Source != "osm" {
+		t.Fatalf("duplicate registered point was not removed: %+v", got)
 	}
 }

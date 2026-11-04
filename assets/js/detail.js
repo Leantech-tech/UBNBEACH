@@ -201,6 +201,12 @@ export function openApartmentDetail(apartment, { apartments = [] } = {}) {
       modal.close();
       openApartmentDetail(selected, { apartments });
     },
+    onBook: apartment.available
+      ? () => {
+          modal.close();
+          setTimeout(() => openBooking(apartment), 240);
+        }
+      : undefined,
   });
   const stopNearby = renderNearby(modal.body.querySelector('[data-nearby-mount]'), apartment);
 
