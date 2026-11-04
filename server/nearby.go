@@ -674,14 +674,15 @@ func googleMapsSearchURL(queryText string) string {
 }
 
 func googleMapsEmbedURL(key string, lat, lon float64) string {
+	location := fmt.Sprintf("%.7f,%.7f", lat, lon)
 	query := url.Values{
 		"key":      {key},
-		"center":   {fmt.Sprintf("%.7f,%.7f", lat, lon)},
+		"q":        {location},
 		"zoom":     {"17"},
 		"maptype":  {"roadmap"},
 		"language": {"pt-BR"},
 	}
-	return "https://www.google.com/maps/embed/v1/view?" + query.Encode()
+	return "https://www.google.com/maps/embed/v1/place?" + query.Encode()
 }
 
 func validGeo(lat, lon float64) bool {

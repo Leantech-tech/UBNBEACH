@@ -237,17 +237,17 @@ func TestGoogleMapsURLsOpenTheSelectedPlaceOrExactPin(t *testing.T) {
 	}
 }
 
-func TestGoogleMapsEmbedURLCentersOnExactCoordinates(t *testing.T) {
+func TestGoogleMapsEmbedURLPinsExactCoordinates(t *testing.T) {
 	embedURL, err := url.Parse(googleMapsEmbedURL("public-embed-key", -23.5000012, -45.1000023))
 	if err != nil {
 		t.Fatal(err)
 	}
 	query := embedURL.Query()
-	if embedURL.Host != "www.google.com" || embedURL.Path != "/maps/embed/v1/view" {
+	if embedURL.Host != "www.google.com" || embedURL.Path != "/maps/embed/v1/place" {
 		t.Fatalf("unexpected Google Maps Embed URL: %s", embedURL)
 	}
-	if query.Get("key") != "public-embed-key" || query.Get("center") != "-23.5000012,-45.1000023" || query.Get("zoom") != "17" {
-		t.Fatalf("map URL does not contain the exact center and zoom: %s", embedURL)
+	if query.Get("key") != "public-embed-key" || query.Get("q") != "-23.5000012,-45.1000023" || query.Get("zoom") != "17" {
+		t.Fatalf("map URL does not contain the exact pin and zoom: %s", embedURL)
 	}
 }
 

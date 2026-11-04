@@ -57,6 +57,30 @@ function propertyMapURL(apartment) {
   return '';
 }
 
+function propertyDirectionsFromPosition(embedURL, latitude, longitude) {
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+      !Number.isFinite(longitude) || longitude < -180 || longitude > 180) return null;
+  try {
+    const place = new URL(embedURL);
+    if (place.protocol !== 'https:' || place.hostname !== 'www.google.com' || place.pathname !== '/maps/embed/v1/place') return null;
+    const destination = place.searchParams.get('q');
+    if (!destination) return null;
+    const origin = `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+    const route = new URL(place.href);
+    route.pathname = '/maps/embed/v1/directions';
+    route.searchParams.delete('q');
+    route.searchParams.set('origin', origin);
+    route.searchParams.set('destination', destination);
+    route.searchParams.set('mode', 'driving');
+    route.searchParams.set('units', 'metric');
+
+    const mapsQuery = new URLSearchParams({ api: '1', origin, destination, travelmode: 'driving' });
+    return { embedURL: route.href, mapsURL: `https://www.google.com/maps/dir/?${mapsQuery.toString()}` };
+  } catch {
+    return null;
+  }
+}
+
 function renderPropertyLocation(mount, apartment) {
   if (!mount) return;
   const mapURL = propertyMapURL(apartment);
@@ -90,6 +114,7 @@ function renderPropertyLocation(mount, apartment) {
   }
 
   const controller = new AbortController();
+  let locationRequestTimer = 0;
   void fetch(`/api/imoveis/${encodeURIComponent(apartment.id)}/mapa-embed`, { signal: controller.signal })
     .then(async (response) => {
       if (!content?.isConnected || controller.signal.aborted) return;
@@ -105,7 +130,7 @@ function renderPropertyLocation(mount, apartment) {
       let embedURL;
       try {
         const candidate = new URL(String(data.embedUrl ?? ''));
-        if (candidate.protocol === 'https:' && candidate.hostname === 'www.google.com' && candidate.pathname === '/maps/embed/v1/view') {
+        if (candidate.protocol === 'https:' && candidate.hostname === 'www.google.com' && candidate.pathname === '/maps/embed/v1/place') {
           embedURL = candidate.href;
         }
       } catch {
@@ -116,15 +141,50 @@ function renderPropertyLocation(mount, apartment) {
         return;
       }
       content.innerHTML = `<div class="detail-map-frame">
-        <iframe title="Mapa da localização do imóvel no Google Maps" src="${esc(embedURL)}" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
-        <span class="detail-map-center-pin" aria-hidden="true">${ICONS.pin}</span>
+        <iframe title="Mapa do imóvel no Google Maps" src="${esc(embedURL)}" loading="eager" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
       </div>
-      <a class="detail-map-open detail-map-open-inline" href="${esc(mapURL)}" target="_blank" rel="noopener noreferrer">Abrir no Google Maps ${ICONS.arrowRight}</a>`;
+      <p class="detail-map-privacy-notice">Para traçar a rota, sua localização atual será compartilhada diretamente com o Google Maps, após sua autorização no navegador.</p>
+      <p class="detail-map-route-status" data-map-route-status role="status" aria-live="polite">Aguardando autorização para traçar a rota…</p>
+      <a class="detail-map-open detail-map-open-inline" data-map-open-link href="${esc(mapURL)}" target="_blank" rel="noopener noreferrer">Abrir localização no Google Maps ${ICONS.arrowRight}</a>`;
+      const iframe = content.querySelector('iframe');
+      const routeStatus = content.querySelector('[data-map-route-status]');
+      const mapOpenLink = content.querySelector('[data-map-open-link]');
+      if (typeof navigator === 'undefined' || !navigator.geolocation) {
+        routeStatus.textContent = 'Este navegador ou conexão não disponibiliza localização; o mapa continua visível sem a rota.';
+        return;
+      }
+      locationRequestTimer = window.setTimeout(() => {
+        if (!content?.isConnected || controller.signal.aborted) return;
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            if (!content?.isConnected || controller.signal.aborted) return;
+            const route = propertyDirectionsFromPosition(embedURL, position.coords.latitude, position.coords.longitude);
+            if (!route) {
+              routeStatus.textContent = 'Não foi possível traçar a rota a partir da sua localização.';
+              return;
+            }
+            iframe.src = route.embedURL;
+            iframe.title = 'Rota de carro até o imóvel no Google Maps';
+            routeStatus.textContent = 'Rota de carro traçada a partir da sua localização.';
+            mapOpenLink.href = route.mapsURL;
+            mapOpenLink.innerHTML = `Abrir rota no Google Maps ${ICONS.arrowRight}`;
+          },
+          () => {
+            if (content?.isConnected && !controller.signal.aborted) {
+              routeStatus.textContent = 'Sem acesso à localização, o mapa continua visível e a rota não foi traçada.';
+            }
+          },
+          { enableHighAccuracy: false, maximumAge: 30000, timeout: 12000 },
+        );
+      }, 350);
     })
     .catch(() => {
       if (!controller.signal.aborted) showFallback('Não foi possível carregar o mapa agora.');
     });
-  return () => controller.abort();
+  return () => {
+    if (locationRequestTimer) window.clearTimeout(locationRequestTimer);
+    controller.abort();
+  };
 }
 
 /** Monta o resumo das camas ("2 de casal · 2 beliches · 1 sofá-cama"). */
@@ -274,7 +334,8 @@ export function openApartmentDetail(apartment, { apartments = [] } = {}) {
       </div>
     </article>`;
 
-  const modal = openModal(html, { variant: 'modal-detail' });
+  let cleanupDetail = () => {};
+  const modal = openModal(html, { variant: 'modal-detail', onBeforeClose: () => cleanupDetail() });
 
   /* ---------- Galeria ---------- */
   const gallery = createGallery(modal.body.querySelector('[data-gallery-mount]'), images, {
@@ -310,12 +371,10 @@ export function openApartmentDetail(apartment, { apartments = [] } = {}) {
     });
   });
 
-  // Remove os listeners da galeria quando o modal fechar
-  const originalClose = modal.close;
-  modal.close = () => {
+  // Remove listeners e pedidos pendentes em qualquer caminho de fechamento.
+  cleanupDetail = () => {
     stopPropertyLocation?.();
     stopNearby?.();
     gallery.destroy();
-    originalClose();
   };
 }

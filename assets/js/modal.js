@@ -3,10 +3,10 @@
  * Abre um overlay com um painel (sheet) e devolve uma API de controle.
  *
  * @param {string} html Conteúdo injetado no painel.
- * @param {{ variant?: string, labelledBy?: string, onClose?: () => void }} opts
+ * @param {{ variant?: string, labelledBy?: string, onBeforeClose?: () => void, onClose?: () => void }} opts
  * @returns {{ sheet: HTMLElement, body: HTMLElement, close: () => void }}
  */
-export function openModal(html, { variant = '', onClose } = {}) {
+export function openModal(html, { variant = '', onBeforeClose, onClose } = {}) {
   const root = document.getElementById('modal-root');
   if (!root) throw new Error('#modal-root não encontrado no HTML.');
 
@@ -30,6 +30,7 @@ export function openModal(html, { variant = '', onClose } = {}) {
   const close = () => {
     if (closed) return;
     closed = true;
+    onBeforeClose?.();
     overlay.classList.remove('is-open');
     document.removeEventListener('keydown', onKey);
     setTimeout(() => {
