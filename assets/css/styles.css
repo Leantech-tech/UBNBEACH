@@ -1508,7 +1508,7 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .detail-map-frame {
   position: relative;
   overflow: hidden;
-  min-height: 240px;
+  height: 240px;
   border: 1px solid var(--line);
   border-radius: var(--radius-s);
   background: var(--bg-soft);
@@ -1516,9 +1516,23 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .detail-map-frame iframe {
   display: block;
   width: 100%;
-  height: 240px;
+  height: 292px;
   border: 0;
 }
+.detail-map-attribution {
+  position: absolute;
+  right: 0.4rem;
+  bottom: 0.4rem;
+  z-index: 1;
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #34545b;
+  font-size: 0.62rem;
+  line-height: 1.2;
+  text-decoration: none;
+}
+.detail-map-attribution:hover { text-decoration: underline; }
 .detail-map-fallback {
   display: flex;
   min-height: 210px;

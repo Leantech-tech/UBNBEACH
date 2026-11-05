@@ -126,6 +126,7 @@ function renderPropertyLocation(mount, apartment) {
       }
       content.innerHTML = `<div class="detail-map-frame">
         <iframe title="Mapa com a localização do imóvel no OpenStreetMap" src="${esc(embedURL)}" loading="eager" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+        <a class="detail-map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap</a>
       </div>
       <a class="detail-map-open detail-map-open-inline" href="${esc(routeURL)}" target="_blank" rel="noopener noreferrer">Traçar rota no Google Maps ${ICONS.arrowRight}</a>`;
     })
