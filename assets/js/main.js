@@ -320,32 +320,28 @@ function initReveals() {
 }
 
 /* ============================================================
- *  Título do hero: entra letra por letra
+ *  Título do hero: palavras entram uma por vez
  * ============================================================ */
 function initHeroTitle() {
   const h1 = document.querySelector('.hero h1');
   if (!h1) return;
   if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
 
-  const LETTER_STEP = 24;
-  const WORD_PAUSE = 70;
-  let delay = 0;
+  const WORD_STEP = 220;
+  let wordIndex = 0;
 
-  const wrapChars = (node, parent) => {
+  const wrapWords = (node, parent) => {
     node.textContent.split(/(\s+)/).forEach((part) => {
       if (!part) return;
       if (/^\s+$/.test(part)) {
-        delay += WORD_PAUSE;
-        parent.appendChild(document.createTextNode(' '));
+        parent.appendChild(document.createTextNode(part));
       } else {
-        for (const char of part) {
-          const span = document.createElement('span');
-          span.className = 'letter';
-          span.style.setProperty('--d', `${delay}ms`);
-          span.textContent = char;
-          parent.appendChild(span);
-          delay += LETTER_STEP;
-        }
+        const span = document.createElement('span');
+        span.className = 'word';
+        span.style.setProperty('--d', `${wordIndex * WORD_STEP}ms`);
+        span.textContent = part;
+        parent.appendChild(span);
+        wordIndex += 1;
       }
     });
   };
@@ -357,13 +353,12 @@ function initHeroTitle() {
       h1.replaceChild(fragment, node);
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       if (node.tagName === 'BR') {
-        delay += WORD_PAUSE;
         return;
       }
       const original = Array.from(node.childNodes);
       node.textContent = '';
       original.forEach((child) => {
-        if (child.nodeType === Node.TEXT_NODE) wrapChars(child, node);
+        if (child.nodeType === Node.TEXT_NODE) wrapWords(child, node);
         else node.appendChild(child);
       });
     }
