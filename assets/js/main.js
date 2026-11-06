@@ -320,7 +320,7 @@ function initReveals() {
 }
 
 /* ============================================================
- *  Título do hero: palavras entram uma por vez
+ *  Título do hero: letras entram uma por vez
  * ============================================================ */
 function initHeroTitle() {
   const h1 = document.querySelector('.hero h1');
@@ -328,21 +328,28 @@ function initHeroTitle() {
   const replayButton = document.querySelector('.hero-title-replay');
   const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-  const WORD_STEP = 360;
-  let wordIndex = 0;
+  const LETTER_STEP = 55;
+  let letterIndex = 0;
+  h1.setAttribute('aria-label', h1.textContent.trim().replace(/\s+/g, ' '));
 
-  const wrapWords = (node, parent) => {
+  const wrapLetters = (node, parent) => {
     node.textContent.split(/(\s+)/).forEach((part) => {
       if (!part) return;
       if (/^\s+$/.test(part)) {
         parent.appendChild(document.createTextNode(part));
       } else {
-        const span = document.createElement('span');
-        span.className = 'word';
-        span.style.setProperty('--d', `${wordIndex * WORD_STEP}ms`);
-        span.textContent = part;
-        parent.appendChild(span);
-        wordIndex += 1;
+        const word = document.createElement('span');
+        word.className = 'word';
+        word.setAttribute('aria-hidden', 'true');
+        Array.from(part).forEach((char) => {
+          const letter = document.createElement('span');
+          letter.className = 'letter';
+          letter.style.setProperty('--d', `${letterIndex * LETTER_STEP}ms`);
+          letter.textContent = char;
+          word.appendChild(letter);
+          letterIndex += 1;
+        });
+        parent.appendChild(word);
       }
     });
   };
@@ -350,7 +357,7 @@ function initHeroTitle() {
   Array.from(h1.childNodes).forEach((node) => {
     if (node.nodeType === Node.TEXT_NODE) {
       const fragment = document.createDocumentFragment();
-      wrapWords(node, fragment);
+      wrapLetters(node, fragment);
       h1.replaceChild(fragment, node);
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       if (node.tagName === 'BR') {
@@ -359,7 +366,7 @@ function initHeroTitle() {
       const original = Array.from(node.childNodes);
       node.textContent = '';
       original.forEach((child) => {
-        if (child.nodeType === Node.TEXT_NODE) wrapWords(child, node);
+        if (child.nodeType === Node.TEXT_NODE) wrapLetters(child, node);
         else node.appendChild(child);
       });
     }
