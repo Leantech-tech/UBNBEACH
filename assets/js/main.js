@@ -325,9 +325,10 @@ function initReveals() {
 function initHeroTitle() {
   const h1 = document.querySelector('.hero h1');
   if (!h1) return;
-  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  const replayButton = document.querySelector('.hero-title-replay');
+  const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-  const WORD_STEP = 220;
+  const WORD_STEP = 360;
   let wordIndex = 0;
 
   const wrapWords = (node, parent) => {
@@ -363,6 +364,15 @@ function initHeroTitle() {
       });
     }
   });
+
+  replayButton?.addEventListener('click', () => {
+    h1.classList.remove('play');
+    h1.classList.add('replay-motion');
+    void h1.offsetWidth;
+    h1.classList.add('play');
+  });
+
+  if (reducedMotion) return;
 
   if (!('IntersectionObserver' in window)) {
     h1.classList.add('play');
