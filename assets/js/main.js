@@ -325,8 +325,6 @@ function initReveals() {
 function initHeroTitle() {
   const h1 = document.querySelector('.hero h1');
   if (!h1) return;
-  const replayButton = document.querySelector('.hero-title-replay');
-  const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
   const LETTER_STEP = 55;
   let letterIndex = 0;
@@ -371,15 +369,6 @@ function initHeroTitle() {
       });
     }
   });
-
-  replayButton?.addEventListener('click', () => {
-    h1.classList.remove('play');
-    h1.classList.add('replay-motion');
-    void h1.offsetWidth;
-    h1.classList.add('play');
-  });
-
-  if (reducedMotion) return;
 
   if (!('IntersectionObserver' in window)) {
     h1.classList.add('play');
