@@ -349,7 +349,7 @@ function initHeroTitle() {
   Array.from(h1.childNodes).forEach((node) => {
     if (node.nodeType === Node.TEXT_NODE) {
       const fragment = document.createDocumentFragment();
-      wrapChars(node, fragment);
+      wrapWords(node, fragment);
       h1.replaceChild(fragment, node);
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       if (node.tagName === 'BR') {
