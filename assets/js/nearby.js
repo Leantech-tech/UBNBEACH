@@ -23,10 +23,22 @@ function googleMapsURL(value) {
   return '';
 }
 
+function openStreetMapURL(value) {
+  try {
+    const url = new URL(String(value ?? ''));
+    if (url.protocol === 'https:' && url.hostname === 'www.openstreetmap.org'
+      && /^\/(node|way|relation)\/\d+$/.test(url.pathname)) return url.href;
+  } catch {
+    // links inválidos não são mostrados
+  }
+  return '';
+}
+
 function nearbyItem(point, hidden) {
   const distance = !hidden && Number.isFinite(Number(point.distanceKm)) && Number(point.distanceKm) > 0
     ? `<span class="nearby-dist">${formatDistance(Number(point.distanceKm))}</span>` : '';
   const mapsURL = googleMapsURL(point.googleMapsUrl);
+  const osmURL = openStreetMapURL(point.osmUrl);
   return `<li class="nearby-item">
     ${distance}
     <div class="nearby-info">
@@ -35,6 +47,7 @@ function nearbyItem(point, hidden) {
       ${point.address ? `<p class="nearby-address">${ICONS.pin}<span>${esc(point.address)}</span></p>` : ''}
       ${point.source === 'registered' ? '<span class="nearby-local-source">Cadastro local</span>' : ''}
     </div>
+    ${osmURL ? `<a class="nearby-map-link" href="${esc(osmURL)}" target="_blank" rel="noopener noreferrer">${ICONS.pin}<span>Ver no OpenStreetMap</span></a>` : ''}
     ${mapsURL ? `<a class="nearby-map-link" href="${esc(mapsURL)}" target="_blank" rel="noopener noreferrer">${ICONS.pin}<span>Ver no Google Maps</span></a>` : ''}
   </li>`;
 }
@@ -44,9 +57,8 @@ function renderResults(container, data, hidden) {
     ? data.points.filter((point) => point && typeof point.name === 'string' && point.name.trim()) : [];
   if (!points.length) {
     container.innerHTML = `<p class="nearby-empty nearby-empty-card">${data.partial
-      ? 'Não foi possível completar a consulta de todas as categorias agora.'
-      : 'Nenhum lugar encontrado neste raio.'}</p>
-      ${data.limited ? '<p class="nearby-note">O Google limita a quantidade de resultados por busca; outros lugares podem existir neste raio.</p>' : ''}`;
+      ? 'O catálogo de lugares está temporariamente indisponível.'
+      : 'Nenhum lugar cadastrado neste raio.'}</p>`;
     return;
   }
   const categories = [...new Set(points.map((point) => point.category || 'Ponto de interesse'))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
@@ -60,9 +72,8 @@ function renderResults(container, data, hidden) {
   <p class="nearby-count" data-nearby-count></p>
   <ol class="nearby-list" data-nearby-list></ol>
   ${hidden ? '<p class="nearby-note">A distância individual não aparece para preservar a localização do imóvel.</p>' : '<p class="nearby-note">Distâncias em linha reta a partir do imóvel.</p>'}
-  ${data.limited ? '<p class="nearby-note">O Google limita a quantidade de resultados por busca; outros lugares podem existir neste raio.</p>' : ''}
-  ${data.partial ? '<p class="nearby-note">Algumas categorias não puderam ser consultadas agora.</p>' : ''}
-  <p class="nearby-note nearby-google-attribution"><span translate="no">Google Maps</span></p>`;
+  ${data.partial ? '<p class="nearby-note">O catálogo de lugares está temporariamente incompleto.</p>' : ''}
+  <p class="nearby-note">Dados de lugares: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© colaboradores do OpenStreetMap (ODbL)</a>. Lugares ainda não mapeados podem não aparecer.</p>`;
   const show = (category = '') => {
     const visible = category ? points.filter((point) => point.category === category) : points;
     container.querySelector('[data-nearby-list]').innerHTML = visible.map((point) => nearbyItem(point, hidden)).join('');
@@ -93,7 +104,7 @@ export function renderNearby(mount, apartment) {
       <h3>Pontos de interesse próximos</h3>
       <p class="nearby-sub">Lugares em um raio de 10 km a partir deste imóvel.</p>
     </div>
-    <div data-nearby-results aria-live="polite"><p class="nearby-empty">Buscando lugares no Google Maps...</p></div>`, {
+    <div data-nearby-results aria-live="polite"><p class="nearby-empty">Consultando lugares próximos...</p></div>`, {
       variant: 'modal-nearby',
       onClose: () => {
         controller?.abort();
@@ -119,9 +130,7 @@ export function renderNearby(mount, apartment) {
         if (response.status === 422) {
           results.innerHTML = '<p class="nearby-empty nearby-empty-card">Para consultar lugares a 10 km, é preciso cadastrar a localização deste imóvel.</p>';
         } else if (response.status === 503) {
-          results.innerHTML = '<p class="nearby-empty nearby-empty-card">A consulta ao Google Maps ainda não está configurada.</p>';
-        } else if (response.status === 429) {
-          results.innerHTML = '<p class="nearby-empty nearby-empty-card">Muitas consultas foram feitas recentemente. Tente novamente mais tarde.</p>';
+          results.innerHTML = '<p class="nearby-empty nearby-empty-card">O banco de lugares está indisponível agora.</p>';
         } else if (!response.ok) {
           results.innerHTML = '<p class="nearby-empty nearby-empty-card">Não foi possível consultar os lugares agora. Tente novamente mais tarde.</p>';
         } else {

@@ -22,7 +22,7 @@ func main() {
 	// Conexão com banco é feita em background para não bloquear startup.
 	// Criado antes da goroutine para que a conexão, quando estabelecida,
 	// seja publicada no App (e não perdida numa cópia de valor nil).
-	app := &App{nearby: newNearbyService(os.Getenv("GOOGLE_PLACES_API_KEY"))}
+	app := &App{}
 
 	go func() {
 		conn, err := sql.Open("postgres", cfg.DSN())
@@ -40,6 +40,11 @@ func main() {
 			return
 		}
 
+		if err := ensureLocalPOITable(context.Background(), conn); err != nil {
+			log.Printf("AVISO: não foi possível preparar catálogo local OSM: %v", err)
+		} else {
+			go runLocalPOISync(conn)
+		}
 		app.db.Store(conn)
 		log.Printf("conectado ao banco %s@%s:%s/%s", cfg.DBUser, cfg.DBHost, cfg.DBPort, cfg.DBName)
 

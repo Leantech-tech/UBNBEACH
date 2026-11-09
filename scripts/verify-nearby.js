@@ -27,8 +27,8 @@ async function main() {
     if (url === '/api/pontos-interesse') return { ok: true, json: async () => ({ categories: [], points: [] }) };
     if (String(url).includes('22222222-2222-2222-2222-222222222222/pontos-proximos')) return { ok: false, status: 422 };
     if (String(url).includes('/pontos-proximos')) return { ok: true, json: async () => ({
-      limited: true, points: [
-        { id: 'one', name: 'Farmácia próxima', category: 'Farmácias', icon: 'pharmacy', address: 'Rua Exemplo' },
+      limited: false, points: [
+        { id: 'one', name: 'Farmácia próxima', category: 'Farmácias', icon: 'pharmacy', address: 'Rua Exemplo', source: 'osm', osmUrl: 'https://www.openstreetmap.org/node/123' },
         { id: 'two', name: '<script>malicioso</script>', category: 'Restaurantes', icon: 'restaurant' },
       ],
     }) };
@@ -48,7 +48,7 @@ async function main() {
   if (!calls.some((url) => url.includes('11111111-1111-1111-1111-111111111111/pontos-proximos'))) throw new Error('popup did not fetch nearby places');
   const popup = document.querySelector('.modal-nearby');
   if (!popup || !popup.textContent.includes('Farmácia próxima')) throw new Error('popup did not show places');
-  if (!popup.textContent.includes('Google Maps') || !popup.textContent.includes('outros lugares podem existir')) throw new Error('attribution or limit missing');
+  if (!popup.textContent.includes('OpenStreetMap') || !popup.querySelector('a[href="https://www.openstreetmap.org/node/123"]')) throw new Error('OSM attribution or map link missing');
   if (popup.querySelector('script, .nearby-dist, iframe')) throw new Error('unsafe content or hidden location exposed');
   const filter = popup.querySelector('[data-nearby-category]');
   filter.value = 'Farmácias';

@@ -69,8 +69,7 @@ type ImageDTO struct {
 // é estabelecida em background após o startup e publicada via Store,
 // sem corrida com os handlers que leem via DB().
 type App struct {
-	db     atomic.Pointer[sql.DB]
-	nearby *nearbyService
+	db atomic.Pointer[sql.DB]
 }
 
 // DB retorna a conexão ativa, ou nil se o banco ainda não conectou
