@@ -512,6 +512,7 @@ function setupCatalogMode() {
   if (linkedWhatsApp() || isPromoRoute()) return;
 
   document.querySelectorAll('[data-whatsapp-general]').forEach((el) => el.setAttribute('hidden', ''));
+  document.querySelectorAll('[data-contact-heading]').forEach((el) => el.setAttribute('hidden', ''));
   document.querySelector('.wa-float')?.setAttribute('hidden', '');
   document.querySelector('.cta-banner')?.setAttribute('hidden', '');
 }
