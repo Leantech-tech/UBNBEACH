@@ -23,22 +23,10 @@ function googleMapsURL(value) {
   return '';
 }
 
-function openStreetMapURL(value) {
-  try {
-    const url = new URL(String(value ?? ''));
-    if (url.protocol === 'https:' && url.hostname === 'www.openstreetmap.org'
-      && /^\/(node|way|relation)\/\d+$/.test(url.pathname)) return url.href;
-  } catch {
-    // links inválidos não são mostrados
-  }
-  return '';
-}
-
 function nearbyItem(point, hidden) {
   const distance = !hidden && Number.isFinite(Number(point.distanceKm)) && Number(point.distanceKm) > 0
     ? `<span class="nearby-dist">${formatDistance(Number(point.distanceKm))}</span>` : '';
   const mapsURL = googleMapsURL(point.googleMapsUrl);
-  const osmURL = openStreetMapURL(point.osmUrl);
   return `<li class="nearby-item">
     ${distance}
     <div class="nearby-info">
@@ -47,7 +35,6 @@ function nearbyItem(point, hidden) {
       ${point.address ? `<p class="nearby-address">${ICONS.pin}<span>${esc(point.address)}</span></p>` : ''}
       ${point.source === 'registered' ? '<span class="nearby-local-source">Cadastro local</span>' : ''}
     </div>
-    ${osmURL ? `<a class="nearby-map-link" href="${esc(osmURL)}" target="_blank" rel="noopener noreferrer">${ICONS.pin}<span>Ver no OpenStreetMap</span></a>` : ''}
     ${mapsURL ? `<a class="nearby-map-link" href="${esc(mapsURL)}" target="_blank" rel="noopener noreferrer">${ICONS.pin}<span>Ver no Google Maps</span></a>` : ''}
   </li>`;
 }
