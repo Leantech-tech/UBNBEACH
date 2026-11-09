@@ -11,6 +11,12 @@ const formatDistance = (km) => km < 1
   ? `${Math.round(km * 1000)} m`
   : `${km.toFixed(1).replace('.', ',')} km`;
 
+const normalizeSearchText = (value) => String(value ?? '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLocaleLowerCase('pt-BR')
+  .trim();
+
 function googleMapsURL(value) {
   try {
     const url = new URL(String(value ?? ''));
@@ -49,7 +55,12 @@ function renderResults(container, data, hidden) {
     return;
   }
   const categories = [...new Set(points.map((point) => point.category || 'Ponto de interesse'))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  container.innerHTML = `<div class="nearby-controls">
+  container.innerHTML = `<div class="nearby-search">
+    <label for="nearby-search-input">Buscar ponto de interesse</label>
+    <input id="nearby-search-input" type="search" data-nearby-search autocomplete="off"
+      placeholder="Ex.: praia, cachoeira, restaurante">
+  </div>
+  <div class="nearby-controls">
     <label for="nearby-category">Categoria</label>
     <select id="nearby-category" data-nearby-category>
       <option value="">Todas (${points.length})</option>
@@ -61,13 +72,24 @@ function renderResults(container, data, hidden) {
   ${hidden ? '<p class="nearby-note">A distância individual não aparece para preservar a localização do imóvel.</p>' : '<p class="nearby-note">Distâncias em linha reta a partir do imóvel.</p>'}
   ${data.partial ? '<p class="nearby-note">O catálogo de lugares está temporariamente incompleto.</p>' : ''}
   <p class="nearby-note">Dados de lugares: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© colaboradores do OpenStreetMap (ODbL)</a>. Lugares ainda não mapeados podem não aparecer.</p>`;
-  const show = (category = '') => {
-    const visible = category ? points.filter((point) => point.category === category) : points;
-    container.querySelector('[data-nearby-list]').innerHTML = visible.map((point) => nearbyItem(point, hidden)).join('');
+  const searchInput = container.querySelector('[data-nearby-search]');
+  const categorySelect = container.querySelector('[data-nearby-category]');
+  const show = () => {
+    const category = categorySelect.value;
+    const term = normalizeSearchText(searchInput.value);
+    const visible = points.filter((point) => {
+      const matchesCategory = !category || point.category === category;
+      const searchable = normalizeSearchText([point.name, point.address, point.category].join(' '));
+      return matchesCategory && (!term || searchable.includes(term));
+    });
+    container.querySelector('[data-nearby-list]').innerHTML = visible.length
+      ? visible.map((point) => nearbyItem(point, hidden)).join('')
+      : '<li class="nearby-search-empty">Nenhum ponto corresponde à sua busca.</li>';
     container.querySelector('[data-nearby-count]').textContent = `${visible.length} ${visible.length === 1 ? 'lugar encontrado' : 'lugares encontrados'}`;
   };
   show();
-  container.querySelector('[data-nearby-category]').addEventListener('change', (event) => show(event.target.value));
+  searchInput.addEventListener('input', show);
+  categorySelect.addEventListener('change', show);
 }
 
 export function renderNearby(mount, apartment) {
