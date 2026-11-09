@@ -244,6 +244,7 @@ func localOSMNearby(ctx context.Context, db *sql.DB, lat, lon float64) ([]nearby
 			&point.Latitude, &point.Longitude, &point.OSMURL); err != nil {
 			return nil, err
 		}
+		point.MapsURL = googleMapsSearchURL(fmt.Sprintf("%.7f,%.7f", point.Latitude, point.Longitude))
 		point.DistanceKm = geoDistanceKm(lat, lon, point.Latitude, point.Longitude)
 		if point.DistanceKm > float64(nearbyRadiusMeters)/1000 {
 			continue

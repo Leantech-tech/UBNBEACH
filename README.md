@@ -8,4 +8,4 @@ Após a conexão com o banco, o servidor cria a tabela `osm_pontos_interesse` e 
 
 As categorias incluem praias, cachoeiras, mercados, lojas, restaurantes, cafés, farmácias, parques e atrações. A fonte é [OpenStreetMap, sob ODbL](https://www.openstreetmap.org/copyright); a atribuição aparece no popup. Para endereços ocultos, a resposta omite as coordenadas do imóvel e a distância de cada lugar, e ordena os resultados por nome. Sem coordenadas internas válidas, a busca informa que a localização deve ser cadastrada. A resposta não pode ser armazenada em cache público.
 
-O mapa incorporado do imóvel usa OpenStreetMap. O link para traçar a rota até o imóvel usa uma URL do Google Maps sem chave de API. Os links dos pontos importados abrem o respectivo elemento no OpenStreetMap.
+O mapa incorporado do imóvel usa OpenStreetMap. O link para traçar a rota até o imóvel usa uma URL do Google Maps sem chave de API. Cada ponto importado oferece links para abrir sua coordenada tanto no OpenStreetMap quanto no Google Maps; esses links não usam a API paga do Google Places.
