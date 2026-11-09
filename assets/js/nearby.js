@@ -55,17 +55,19 @@ function renderResults(container, data, hidden) {
     return;
   }
   const categories = [...new Set(points.map((point) => point.category || 'Ponto de interesse'))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  container.innerHTML = `<div class="nearby-search">
-    <label for="nearby-search-input">Buscar ponto de interesse</label>
-    <input id="nearby-search-input" type="search" data-nearby-search autocomplete="off"
-      placeholder="Ex.: praia, cachoeira, restaurante">
-  </div>
-  <div class="nearby-controls">
-    <label for="nearby-category">Categoria</label>
-    <select id="nearby-category" data-nearby-category>
-      <option value="">Todas (${points.length})</option>
-      ${categories.map((category) => `<option value="${esc(category)}">${esc(category)} (${points.filter((point) => point.category === category).length})</option>`).join('')}
-    </select>
+  container.innerHTML = `<div class="nearby-filterbar">
+    <div class="nearby-search">
+      <label for="nearby-search-input">Buscar ponto de interesse</label>
+      <input id="nearby-search-input" type="search" data-nearby-search autocomplete="off"
+        placeholder="Ex.: praia, cachoeira, restaurante">
+    </div>
+    <div class="nearby-controls">
+      <label for="nearby-category">Categoria</label>
+      <select id="nearby-category" data-nearby-category>
+        <option value="">Todas (${points.length})</option>
+        ${categories.map((category) => `<option value="${esc(category)}">${esc(category)} (${points.filter((point) => point.category === category).length})</option>`).join('')}
+      </select>
+    </div>
   </div>
   <p class="nearby-count" data-nearby-count></p>
   <ol class="nearby-list" data-nearby-list></ol>

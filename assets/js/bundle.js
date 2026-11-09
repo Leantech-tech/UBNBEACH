@@ -162,17 +162,19 @@
       ${e.source==="registered"?'<span class="nearby-local-source">Cadastro local</span>':""}
     </div>
     ${r?`<a class="nearby-map-link" href="${ue(r)}" target="_blank" rel="noopener noreferrer">${m.pin}<span>Ver no Google Maps</span></a>`:""}
-  </li>`}function Ba(e,a,o){let r=Array.isArray(a.points)?a.points.filter(n=>n&&typeof n.name=="string"&&n.name.trim()):[];if(!r.length){e.innerHTML=`<p class="nearby-empty nearby-empty-card">${a.partial?"O cat\xE1logo de lugares est\xE1 temporariamente indispon\xEDvel.":"Nenhum lugar cadastrado neste raio."}</p>`;return}let i=[...new Set(r.map(n=>n.category||"Ponto de interesse"))].sort((n,u)=>n.localeCompare(u,"pt-BR"));e.innerHTML=`<div class="nearby-search">
-    <label for="nearby-search-input">Buscar ponto de interesse</label>
-    <input id="nearby-search-input" type="search" data-nearby-search autocomplete="off"
-      placeholder="Ex.: praia, cachoeira, restaurante">
-  </div>
-  <div class="nearby-controls">
-    <label for="nearby-category">Categoria</label>
-    <select id="nearby-category" data-nearby-category>
-      <option value="">Todas (${r.length})</option>
-      ${i.map(n=>`<option value="${ue(n)}">${ue(n)} (${r.filter(u=>u.category===n).length})</option>`).join("")}
-    </select>
+  </li>`}function Ba(e,a,o){let r=Array.isArray(a.points)?a.points.filter(n=>n&&typeof n.name=="string"&&n.name.trim()):[];if(!r.length){e.innerHTML=`<p class="nearby-empty nearby-empty-card">${a.partial?"O cat\xE1logo de lugares est\xE1 temporariamente indispon\xEDvel.":"Nenhum lugar cadastrado neste raio."}</p>`;return}let i=[...new Set(r.map(n=>n.category||"Ponto de interesse"))].sort((n,u)=>n.localeCompare(u,"pt-BR"));e.innerHTML=`<div class="nearby-filterbar">
+    <div class="nearby-search">
+      <label for="nearby-search-input">Buscar ponto de interesse</label>
+      <input id="nearby-search-input" type="search" data-nearby-search autocomplete="off"
+        placeholder="Ex.: praia, cachoeira, restaurante">
+    </div>
+    <div class="nearby-controls">
+      <label for="nearby-category">Categoria</label>
+      <select id="nearby-category" data-nearby-category>
+        <option value="">Todas (${r.length})</option>
+        ${i.map(n=>`<option value="${ue(n)}">${ue(n)} (${r.filter(u=>u.category===n).length})</option>`).join("")}
+      </select>
+    </div>
   </div>
   <p class="nearby-count" data-nearby-count></p>
   <ol class="nearby-list" data-nearby-list></ol>
